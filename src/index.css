@@ -1,6 +1,33 @@
+@import "tw-animate-css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 60 6% 97%;
+    --foreground: 28 18% 11%;
+    --card: 60 6% 97%;
+    --card-foreground: 28 18% 11%;
+    --popover: 60 6% 97%;
+    --popover-foreground: 28 18% 11%;
+    --primary: 28 18% 11%;
+    --primary-foreground: 60 6% 97%;
+    --secondary: 30 15% 92%;
+    --secondary-foreground: 28 18% 11%;
+    --muted: 30 15% 92%;
+    --muted-foreground: 28 10% 40%;
+    --accent: 30 15% 92%;
+    --accent-foreground: 28 18% 11%;
+    --destructive: 0 70% 45%;
+    --destructive-foreground: 60 6% 97%;
+    --border: 30 15% 88%;
+    --input: 30 15% 88%;
+    --ring: 28 18% 11%;
+    --radius: 0.5rem;
+  }
+}
 
 :root {
   color-scheme: light only;
