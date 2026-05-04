@@ -46,7 +46,7 @@ Tables initialized on first launch:
 ### Screen 1 — Library (Home)
 
 Apple Libraries–inspired grid of book tiles. Key layout details:
-- **Top-right:** placeholder `div` for the deferred WebGL brain animation — label it `// DEFERRED: WebGL brain animation`.
+- **Top-right:** placeholder `div` for the deferred WebGL brain animation —
 - **Right panel (~20%):** circularly scrolling vocabulary/notes/quotes strip (recency-ordered, looping). Clicking opens a Global Dictionary & Notes modal with a Dictionary tab (all books) and a Notes & Quotes tab (per book).
 - **Add Book:** Tauri `dialog` plugin file picker → copy file to app data dir via IPC → write to `books` table.
 
@@ -91,15 +91,4 @@ Core reading, notes, and vocabulary work fully offline. LLM features attempted w
 
 - PDF and EPUB rendering library — choose the most mature, actively maintained option that integrates cleanly with React + Tauri. Document the choice with a brief comment in code.
 
-## Custom Skills
 
-This repo ships 14 Claude Code skills in `.claude/skills/`. Use them for disciplined development:
-
-- **Before any feature work:** run `brainstorming` → `writing-plans`
-- **Before touching code:** run `test-driven-development`
-- **When hitting a bug:** run `systematic-debugging`
-- **Before claiming done:** run `verification-before-completion`
-- **For isolated feature branches:** run `using-git-worktrees`
-- **For parallel independent tasks:** run `dispatching-parallel-agents`
-
-The `using-superpowers` skill explains the full skill system and should be consulted at the start of any session.
