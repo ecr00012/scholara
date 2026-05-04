@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "scholara-scaffold",
+  "productName": "Scholara",
   "version": "0.1.0",
   "identifier": "com.scholara.app",
   "build": {
@@ -12,9 +12,12 @@
   "app": {
     "windows": [
       {
-        "title": "scholara-scaffold",
-        "width": 800,
-        "height": 600
+        "title": "Scholara",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 600,
+        "resizable": true
       }
     ],
     "security": {
