@@ -1,50 +1,22 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
+import { useEffect } from 'react';
+import { Toaster } from '@/components/ui/sonner';
+import { useAppStore } from './store';
+import { LibraryScreen } from './screens/Library';
+import { SettingsScreen } from './screens/Settings';
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+export default function App() {
+  const view = useAppStore((s) => s.view);
+  const loadBooks = useAppStore((s) => s.loadBooks);
+  const loadApiKey = useAppStore((s) => s.loadApiKey);
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  useEffect(() => {
+    void Promise.all([loadApiKey(), loadBooks()]);
+  }, [loadApiKey, loadBooks]);
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    <>
+      {view === 'library' ? <LibraryScreen /> : <SettingsScreen />}
+      <Toaster richColors closeButton position="bottom-right" />
+    </>
   );
 }
-
-export default App;
