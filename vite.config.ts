@@ -4,6 +4,8 @@ import path from 'node:path';
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
+// @ts-expect-error process is a nodejs global
+const isE2E = process.env.VITE_E2E === '1';
 
 export default defineConfig(async () => ({
   plugins: [react()],
@@ -11,6 +13,26 @@ export default defineConfig(async () => ({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      ...(isE2E
+        ? {
+            '@tauri-apps/api/core': path.resolve(
+              __dirname,
+              './tests/playwright/mocks/tauriCore.ts',
+            ),
+            '@tauri-apps/api/event': path.resolve(
+              __dirname,
+              './tests/playwright/mocks/tauriCore.ts',
+            ),
+            '@tauri-apps/plugin-dialog': path.resolve(
+              __dirname,
+              './tests/playwright/mocks/tauriCore.ts',
+            ),
+            '@tauri-apps/plugin-sql': path.resolve(
+              __dirname,
+              './tests/playwright/mocks/db.ts',
+            ),
+          }
+        : {}),
     },
   },
 
