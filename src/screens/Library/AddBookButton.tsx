@@ -14,6 +14,9 @@ interface Props {
 
 export function AddBookButton({ variant, onAdded }: Props) {
   const insertBook = useAppStore((s) => s.insertBook);
+  const runMetadataExtractionPass = useAppStore(
+    (s) => s.runMetadataExtractionPass,
+  );
   const [hovered, setHovered] = useState(false);
 
   const handleAdd = async () => {
@@ -37,8 +40,11 @@ export function AddBookButton({ variant, onAdded }: Props) {
         file_path: storedPath,
         file_type: fileType,
       });
+      await runMetadataExtractionPass();
       toast.success(`Added "${book.title}"`, {
-        action: onAdded ? { label: 'Edit', onClick: () => onAdded(book) } : undefined,
+        action: onAdded
+          ? { label: 'Edit', onClick: () => onAdded(book) }
+          : undefined,
       });
     } catch (err) {
       toast.error(

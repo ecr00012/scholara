@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { deleteBookFiles } from '../../ipc/files';
 import { useAppStore } from '../../store';
 import type { Book } from '../../db/types';
 
@@ -24,6 +25,12 @@ export function DeleteBookDialog({ book, open, onClose }: Props) {
 
   const handleDelete = async () => {
     try {
+      try {
+        await deleteBookFiles(book.id, book.file_path);
+      } catch (err) {
+        console.warn('Could not delete book files before removing DB row.', err);
+        toast('Removed book, but could not delete its files.');
+      }
       await deleteBook(book.id);
       toast.success('Deleted.');
       onClose();

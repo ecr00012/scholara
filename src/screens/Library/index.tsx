@@ -16,6 +16,9 @@ import { DeleteBookDialog } from './DeleteBookDialog';
 export function LibraryScreen() {
   const books = useAppStore((s) => s.books);
   const insertBook = useAppStore((s) => s.insertBook);
+  const runMetadataExtractionPass = useAppStore(
+    (s) => s.runMetadataExtractionPass,
+  );
   const [editing, setEditing] = useState<Book | null>(null);
   const [deleting, setDeleting] = useState<Book | null>(null);
 
@@ -32,6 +35,7 @@ export function LibraryScreen() {
             toast.error('Only PDF and EPUB files are supported.');
             return;
           }
+          let addedBooks = false;
           for (const p of paths) {
             try {
               const { storedPath, fileType } = await copyUploadedFile(p);
@@ -41,6 +45,7 @@ export function LibraryScreen() {
                 file_path: storedPath,
                 file_type: fileType,
               });
+              addedBooks = true;
               toast.success(`Added "${book.title}"`, {
                 action: { label: 'Edit', onClick: () => setEditing(book) },
               });
@@ -50,6 +55,9 @@ export function LibraryScreen() {
               );
             }
           }
+          if (addedBooks) {
+            await runMetadataExtractionPass();
+          }
         },
       );
     };
@@ -57,7 +65,7 @@ export function LibraryScreen() {
     return () => {
       if (unlisten) unlisten();
     };
-  }, [insertBook]);
+  }, [insertBook, runMetadataExtractionPass]);
 
   return (
     <div className="grid h-full grid-cols-[1fr_20rem]">

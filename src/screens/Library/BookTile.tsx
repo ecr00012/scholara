@@ -1,11 +1,12 @@
 import { MoreHorizontal } from 'lucide-react';
-import { toast } from 'sonner';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { getProgress } from '../../lib/positionProgress';
+import { useAppStore } from '../../store';
 import type { Book } from '../../db/types';
 import { GeneratedCover } from './GeneratedCover';
 
@@ -16,6 +17,9 @@ interface Props {
 }
 
 export function BookTile({ book, onEdit, onDelete }: Props) {
+  const openBook = useAppStore((s) => s.openBook);
+  const progress = getProgress(book.current_position);
+
   return (
     <div className="group relative flex flex-col gap-2">
       {/* Main clickable area */}
@@ -23,8 +27,7 @@ export function BookTile({ book, onEdit, onDelete }: Props) {
         type="button"
         className="relative aspect-[2/3] w-full overflow-hidden rounded-md transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-accent-gold"
         onClick={() => {
-          console.log('Open book', book.id);
-          toast('Reader coming in the next phase.');
+          void openBook(book.id);
         }}
         aria-label={`Open ${book.title}`}
       >
@@ -32,6 +35,7 @@ export function BookTile({ book, onEdit, onDelete }: Props) {
           title={book.title}
           author={book.author}
           imageSrc={book.cover_image_path ?? undefined}
+          progress={progress}
         />
       </button>
 

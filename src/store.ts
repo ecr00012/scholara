@@ -1,16 +1,25 @@
 import { create } from 'zustand';
 import { getDb } from './db/client';
 import * as booksDb from './db/books';
+import * as notesDb from './db/notes';
+import * as vocabDb from './db/vocabulary';
 import * as secretsIpc from './ipc/secrets';
-import type { Book, FileType } from './db/types';
+import { runMetadataExtractionPass as runMetadataExtractionPassLib } from './lib/extractMetadata';
+import type { Book, FileType, NoteRow, VocabRow } from './db/types';
+import type { Position } from './lib/positionShape';
 
-export type AppView = 'library' | 'settings';
+export type AppView = 'library' | 'settings' | 'reader';
 
 interface AppState {
   view: AppView;
   books: Book[];
   apiKey: string | null;
   apiKeyBannerDismissed: boolean;
+  currentBookId: number | null;
+  currentBookNotes: NoteRow[];
+  currentBookVocab: VocabRow[];
+  notesModeActive: boolean;
+  extractionInFlight: Set<number>;
 
   setView: (view: AppView) => void;
   loadBooks: () => Promise<void>;
@@ -27,6 +36,27 @@ interface AppState {
   loadApiKey: () => Promise<void>;
   saveApiKey: (key: string) => Promise<void>;
   dismissApiKeyBanner: () => void;
+  openBook: (id: number) => Promise<void>;
+  closeBook: () => void;
+  patchBook: (id: number, patch: Partial<Book>) => void;
+  setBookDisplayMode: (id: number, mode: 'agent' | 'reader') => Promise<void>;
+  setBookCurrentPosition: (id: number, position: Position) => Promise<void>;
+  setBookEpubLocations: (id: number, locations: string) => Promise<void>;
+  setNotesModeActive: (active: boolean) => void;
+  reloadNotesForCurrentBook: () => Promise<void>;
+  reloadVocabForCurrentBook: () => Promise<void>;
+  insertNoteForCurrentBook: (input: {
+    page_or_position: string;
+    note_text: string | null;
+    quote_text: string | null;
+  }) => Promise<void>;
+  insertVocabForCurrentBook: (input: {
+    word: string;
+    definition: string;
+  }) => Promise<void>;
+  deleteNote: (id: number) => Promise<void>;
+  deleteVocabulary: (id: number) => Promise<void>;
+  runMetadataExtractionPass: () => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -34,6 +64,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   books: [],
   apiKey: null,
   apiKeyBannerDismissed: false,
+  currentBookId: null,
+  currentBookNotes: [],
+  currentBookVocab: [],
+  notesModeActive: false,
+  extractionInFlight: new Set<number>(),
 
   setView: (view) => set({ view }),
 
@@ -82,4 +117,106 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   dismissApiKeyBanner: () => set({ apiKeyBannerDismissed: true }),
+
+  openBook: async (id) => {
+    set({
+      currentBookId: id,
+      view: 'reader',
+      notesModeActive: false,
+      currentBookNotes: [],
+      currentBookVocab: [],
+    });
+    const db = await getDb();
+    void booksDb.setLastOpened(db, id);
+    await Promise.all([
+      get().reloadNotesForCurrentBook(),
+      get().reloadVocabForCurrentBook(),
+    ]);
+  },
+
+  closeBook: () =>
+    set({
+      currentBookId: null,
+      view: 'library',
+      notesModeActive: false,
+      currentBookNotes: [],
+      currentBookVocab: [],
+    }),
+
+  patchBook: (id, patch) =>
+    set({
+      books: get().books.map((book) =>
+        book.id === id ? { ...book, ...patch } : book,
+      ),
+    }),
+
+  setBookDisplayMode: async (id, mode) => {
+    const db = await getDb();
+    await booksDb.setDisplayMode(db, id, mode);
+    get().patchBook(id, { display_mode: mode });
+  },
+
+  setBookCurrentPosition: async (id, position) => {
+    const db = await getDb();
+    await booksDb.setCurrentPosition(db, id, position);
+    get().patchBook(id, { current_position: JSON.stringify(position) });
+  },
+
+  setBookEpubLocations: async (id, locations) => {
+    const db = await getDb();
+    await booksDb.setEpubLocations(db, id, locations);
+    get().patchBook(id, { epub_locations: locations });
+  },
+
+  setNotesModeActive: (active) => set({ notesModeActive: active }),
+
+  reloadNotesForCurrentBook: async () => {
+    const id = get().currentBookId;
+    if (id === null) return;
+    const db = await getDb();
+    set({ currentBookNotes: await notesDb.listNotesForBook(db, id) });
+  },
+
+  reloadVocabForCurrentBook: async () => {
+    const id = get().currentBookId;
+    if (id === null) return;
+    const db = await getDb();
+    set({ currentBookVocab: await vocabDb.listVocabularyForBook(db, id) });
+  },
+
+  insertNoteForCurrentBook: async (input) => {
+    const id = get().currentBookId;
+    if (id === null) throw new Error('No current book');
+    const db = await getDb();
+    await notesDb.insertNote(db, { book_id: id, ...input });
+    await get().reloadNotesForCurrentBook();
+  },
+
+  insertVocabForCurrentBook: async (input) => {
+    const id = get().currentBookId;
+    if (id === null) throw new Error('No current book');
+    const db = await getDb();
+    await vocabDb.insertVocabulary(db, { ...input, book_id: id });
+    await get().reloadVocabForCurrentBook();
+  },
+
+  deleteNote: async (id) => {
+    const db = await getDb();
+    await notesDb.deleteNote(db, id);
+    await get().reloadNotesForCurrentBook();
+  },
+
+  deleteVocabulary: async (id) => {
+    const db = await getDb();
+    await vocabDb.deleteVocabulary(db, id);
+    await get().reloadVocabForCurrentBook();
+  },
+
+  runMetadataExtractionPass: async () => {
+    const driver = {
+      extractionInFlight: get().extractionInFlight,
+      patchBook: get().patchBook,
+    };
+    await runMetadataExtractionPassLib(driver);
+  },
 }));

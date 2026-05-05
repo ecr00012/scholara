@@ -21,7 +21,14 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$APPDATA/covers/**",
+          "$APPDATA/Scholara/covers/**"
+        ]
+      }
     }
   },
   "bundle": {
