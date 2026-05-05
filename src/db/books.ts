@@ -16,7 +16,7 @@ export async function listBooks(db: SqlExecutor): Promise<Book[]> {
   return db.select<Book>(
     `SELECT id, title, author, cover_image_path, file_path, file_type,
             last_opened, current_position, display_mode, metadata_source,
-            created_at
+            epub_locations, created_at
      FROM books
      ORDER BY datetime(created_at) DESC, id DESC`,
   );

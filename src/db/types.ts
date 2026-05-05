@@ -14,6 +14,7 @@ export interface Book {
   current_position: string | null;
   display_mode: DisplayMode;
   metadata_source: MetadataSource;
+  epub_locations: string | null;
   created_at: string;
 }
 
