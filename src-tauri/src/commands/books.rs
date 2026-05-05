@@ -79,3 +79,83 @@ pub fn reveal_in_file_manager(app: AppHandle, path: String) -> Result<(), String
         .reveal_item_in_dir(&path)
         .map_err(err("Could not reveal in file manager"))
 }
+
+fn assert_within_books_dir(app: &AppHandle, path: &Path) -> Result<(), String> {
+    let books_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(err("Could not resolve app data dir"))?
+        .join("books");
+    let canonical = path
+        .canonicalize()
+        .map_err(err("Could not canonicalize path"))?;
+    let canonical_books = books_dir
+        .canonicalize()
+        .map_err(err("Could not canonicalize books dir"))?;
+    if !canonical.starts_with(&canonical_books) {
+        return Err("Path is outside the books directory".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn read_book_bytes(app: AppHandle, path: String) -> Result<Vec<u8>, String> {
+    let p = PathBuf::from(&path);
+    assert_within_books_dir(&app, &p)?;
+    std::fs::read(&p).map_err(err("Could not read book"))
+}
+
+#[tauri::command]
+pub fn save_cover_bytes(
+    app: AppHandle,
+    book_id: i64,
+    bytes: Vec<u8>,
+    ext: String,
+) -> Result<String, String> {
+    let ext_lc = ext.to_lowercase();
+    if !matches!(ext_lc.as_str(), "jpg" | "jpeg" | "png" | "webp") {
+        return Err(format!("Unsupported cover extension: {ext}"));
+    }
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(err("Could not resolve app data dir"))?;
+    let covers_dir = app_data.join("covers");
+    std::fs::create_dir_all(&covers_dir).map_err(err("Could not create covers dir"))?;
+
+    let dest = covers_dir.join(format!("{book_id}.{ext_lc}"));
+    std::fs::write(&dest, &bytes).map_err(err("Could not write cover"))?;
+
+    dest.to_str()
+        .ok_or_else(|| "Cover path is not valid UTF-8".to_string())
+        .map(|s| s.to_string())
+}
+
+#[tauri::command]
+pub fn delete_book_files(
+    app: AppHandle,
+    book_id: i64,
+    file_path: String,
+) -> Result<(), String> {
+    // Idempotent: ignore NotFound errors.
+    let _ = std::fs::remove_file(Path::new(&file_path));
+
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(err("Could not resolve app data dir"))?;
+    let covers_dir = app_data.join("covers");
+    if covers_dir.exists() {
+        if let Ok(entries) = std::fs::read_dir(&covers_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                let name_str = name.to_string_lossy();
+                let prefix = format!("{book_id}.");
+                if name_str.starts_with(&prefix) {
+                    let _ = std::fs::remove_file(entry.path());
+                }
+            }
+        }
+    }
+    Ok(())
+}

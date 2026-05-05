@@ -1,6 +1,9 @@
 mod commands;
 
-use commands::books::{app_data_dir_path, copy_uploaded_file, reveal_in_file_manager};
+use commands::books::{
+    app_data_dir_path, copy_uploaded_file, delete_book_files, read_book_bytes,
+    reveal_in_file_manager, save_cover_bytes,
+};
 use commands::secrets::{get_api_key, set_api_key};
 use tauri_plugin_sql::{Migration, MigrationKind};
 
@@ -33,6 +36,9 @@ pub fn run() {
             copy_uploaded_file,
             app_data_dir_path,
             reveal_in_file_manager,
+            read_book_bytes,
+            save_cover_bytes,
+            delete_book_files,
             get_api_key,
             set_api_key,
         ])
