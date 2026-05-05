@@ -22,16 +22,13 @@ interface Props {
 
 export function EditMetadataModal({ book, open, onClose }: Props) {
   const updateBookMetadata = useAppStore((s) => s.updateBookMetadata);
-  const deleteBook = useAppStore((s) => s.deleteBook);
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
     if (book) {
       setTitle(book.title);
       setAuthor(book.author ?? '');
-      setConfirmingDelete(false);
     }
   }, [book]);
 
@@ -55,19 +52,9 @@ export function EditMetadataModal({ book, open, onClose }: Props) {
     }
   };
 
-  const handleDelete = async () => {
-    try {
-      await deleteBook(book.id);
-      toast.success('Deleted.');
-      onClose();
-    } catch (err) {
-      toast.error(`Could not delete: ${(err as Error).message}`);
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="border border-accent-amber/40 bg-cream text-ink ring-0 sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Edit metadata</DialogTitle>
           <DialogDescription>
@@ -94,44 +81,11 @@ export function EditMetadataModal({ book, open, onClose }: Props) {
             />
           </div>
         </div>
-        <DialogFooter className="flex-col-reverse gap-3 sm:flex-row sm:justify-between">
-          {!confirmingDelete ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-destructive hover:text-destructive"
-              onClick={() => setConfirmingDelete(true)}
-            >
-              Delete book
-            </Button>
-          ) : (
-            <div className="flex items-center gap-2 text-sm">
-              <span>
-                Delete &ldquo;{book.title}&rdquo;? This removes the file and any
-                notes.
-              </span>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDelete}
-              >
-                Delete
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setConfirmingDelete(false)}
-              >
-                Cancel
-              </Button>
-            </div>
-          )}
-          <div className="flex gap-2">
-            <Button variant="ghost" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave}>Save</Button>
-          </div>
+        <DialogFooter className="gap-2 border-t-accent-amber/40 bg-cream">
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave}>Save</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -11,11 +11,13 @@ import { BookGrid } from './BookGrid';
 import { BrainPlaceholder } from './BrainPlaceholder';
 import { ScrollStripPlaceholder } from './ScrollStripPlaceholder';
 import { EditMetadataModal } from './EditMetadataModal';
+import { DeleteBookDialog } from './DeleteBookDialog';
 
 export function LibraryScreen() {
   const books = useAppStore((s) => s.books);
   const insertBook = useAppStore((s) => s.insertBook);
   const [editing, setEditing] = useState<Book | null>(null);
+  const [deleting, setDeleting] = useState<Book | null>(null);
 
   useEffect(() => {
     let unlisten: UnlistenFn | undefined;
@@ -62,7 +64,12 @@ export function LibraryScreen() {
       <main className="flex flex-col gap-6 overflow-y-auto px-12 py-8">
         <ApiKeyBanner />
         <Header />
-        <BookGrid books={books} onEdit={setEditing} onAdded={setEditing} />
+        <BookGrid
+          books={books}
+          onEdit={setEditing}
+          onDelete={setDeleting}
+          onAdded={setEditing}
+        />
       </main>
       <aside className="flex flex-col gap-4 border-l border-stone-200 p-6">
         <BrainPlaceholder />
@@ -72,6 +79,11 @@ export function LibraryScreen() {
         book={editing}
         open={editing !== null}
         onClose={() => setEditing(null)}
+      />
+      <DeleteBookDialog
+        book={deleting}
+        open={deleting !== null}
+        onClose={() => setDeleting(null)}
       />
     </div>
   );
