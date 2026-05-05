@@ -21,8 +21,6 @@ Scholara is an offline-first desktop reading and study app — Google NotebookLM
 
 ## Build & Dev Commands
 
-The Tauri app is not yet scaffolded — commands will be:
-
 ```
 npm run tauri dev      # development
 npm run tauri build    # production build
@@ -30,7 +28,6 @@ npm test               # tests
 npm run lint           # lint
 ```
 
-Once scaffolded, verify these in `package.json` and update this section.
 
 ## Database Schema
 
