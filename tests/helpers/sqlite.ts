@@ -4,20 +4,20 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { SqlExecutor } from '../../src/db/types';
 
-const MIGRATION_PATH = path.resolve(
-  __dirname,
-  '../../src-tauri/migrations/0001_init.sql',
+const MIGRATIONS = ['0001_init.sql', '0002_phase2.sql'].map((f) =>
+  path.resolve(__dirname, '../../src-tauri/migrations', f),
 );
 
 /**
  * Returns a SqlExecutor backed by an in-memory better-sqlite3 instance with
- * the production schema migration applied and foreign keys enabled.
+ * the production schema migrations applied and foreign keys enabled.
  */
 export function makeTestDb(): SqlExecutor {
   const db = new BetterSqlite3(':memory:');
   db.pragma('foreign_keys = ON');
-  const sql = readFileSync(MIGRATION_PATH, 'utf-8');
-  db.exec(sql);
+  for (const mig of MIGRATIONS) {
+    db.exec(readFileSync(mig, 'utf-8'));
+  }
 
   return {
     async execute(sqlStr, params = []) {
