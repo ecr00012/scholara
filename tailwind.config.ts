@@ -14,6 +14,7 @@ const config: Config = {
         accent: {
           amber: '#C9892F',
           gold: '#D4A24C',
+          orange: '#C8702C',
         },
       },
       fontFamily: {
