@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import ePub, {
   EpubCFI,
   type Book as EpubBook,
@@ -6,6 +7,7 @@ import ePub, {
   type NavItem,
   type Rendition,
 } from 'epubjs';
+import { Button } from '@/components/ui/button';
 import type { Book } from '../../db/types';
 import type { EpubQuoteRange, Position } from '../../lib/positionShape';
 import { useAppStore } from '../../store';
@@ -14,13 +16,13 @@ import { applyEpubAnnotations } from './annotations/EpubAnnotations';
 const OPEN_NOTE_EVENT = 'scholara:open-note';
 const GO_TO_SOURCE_EVENT = 'scholara:go-to-source';
 
-// Choreography: phase 1 fades old text + blur out, the action runs while the
-// screen is blank, phase 2 fades new text + blur in, phase 3 lifts the blur.
-// Phase durations differ by trigger — slow for window resizes, snappy for
-// page flips. The CSS transitionDuration is set imperatively to match.
+// Resize still uses a blur mask to hide epub.js iframe reflow flicker.
+// Page turns use a quieter text-only fade.
 const RESIZE_PHASE_MS = 200;
-const PAGE_PHASE_MS = 70;
+const PAGE_PHASE_MS = 200;
 const RESIZE_DEBOUNCE_MS = 150;
+
+type PageDirection = 'next' | 'prev';
 
 interface Props {
   book: Book;
@@ -38,9 +40,9 @@ export function EpubReader({ book, bytes }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const blurOverlayRef = useRef<HTMLDivElement | null>(null);
   const renditionRef = useRef<Rendition | null>(null);
+  const pageChangeRef = useRef<((direction: PageDirection) => void) | null>(null);
 
   const notes = useAppStore((state) => state.currentBookNotes);
-  const notesModeActive = useAppStore((state) => state.notesModeActive);
   const setBookCurrentPosition = useAppStore(
     (state) => state.setBookCurrentPosition,
   );
@@ -111,16 +113,24 @@ export function EpubReader({ book, bytes }: Props) {
       const dispatchDismiss = () => {
         window.dispatchEvent(new CustomEvent('scholara:dismiss-toolbar'));
       };
+      const handleContentKeyDown = (event: KeyboardEvent) => {
+        const triggerPageChange = pageChangeRef.current;
+        if (triggerPageChange) {
+          handlePageTurnKeyDown(event, triggerPageChange);
+        }
+      };
 
       contents.document.addEventListener('mousedown', dispatchDismiss);
       contents.document.addEventListener('mouseup', dispatchFromSelection);
       contents.document.addEventListener('keyup', dispatchFromSelection);
+      contents.document.addEventListener('keydown', handleContentKeyDown);
       contents.document.addEventListener('contextmenu', handleContextMenu);
 
       detachContentListeners.push(() => {
         contents.document.removeEventListener('mousedown', dispatchDismiss);
         contents.document.removeEventListener('mouseup', dispatchFromSelection);
         contents.document.removeEventListener('keyup', dispatchFromSelection);
+        contents.document.removeEventListener('keydown', handleContentKeyDown);
         contents.document.removeEventListener('contextmenu', handleContextMenu);
         activeContents.delete(contents);
       });
@@ -178,7 +188,7 @@ export function EpubReader({ book, bytes }: Props) {
       if (blurOverlayRef.current) blurOverlayRef.current.style.transitionDuration = value;
     };
 
-    const runFadeSequence = (action: () => void, phaseMs: number) => {
+    const runResizeFadeSequence = (action: () => void, phaseMs: number) => {
       if (phaseTimer !== null) {
         window.clearTimeout(phaseTimer);
       }
@@ -203,9 +213,26 @@ export function EpubReader({ book, bytes }: Props) {
       }, phaseMs);
     };
 
+    const runPageFadeSequence = (action: () => void, phaseMs: number) => {
+      if (phaseTimer !== null) {
+        window.clearTimeout(phaseTimer);
+      }
+      sequenceActive = true;
+      setTransitionDuration(phaseMs);
+      setLayerOpacity(0, 0);
+      phaseTimer = window.setTimeout(() => {
+        action();
+        setLayerOpacity(1, 0);
+        phaseTimer = window.setTimeout(() => {
+          phaseTimer = null;
+          sequenceActive = false;
+        }, phaseMs);
+      }, phaseMs);
+    };
+
     const settleResize = () => {
       resizeDebounce = null;
-      runFadeSequence(() => renditionInternals.resize(), RESIZE_PHASE_MS);
+      runResizeFadeSequence(() => renditionInternals.resize(), RESIZE_PHASE_MS);
     };
 
     const handleWindowResize = () => {
@@ -225,7 +252,7 @@ export function EpubReader({ book, bytes }: Props) {
       resizeDebounce = window.setTimeout(settleResize, RESIZE_DEBOUNCE_MS);
     };
 
-    const triggerPageChange = (direction: 'next' | 'prev') => {
+    const triggerPageChange = (direction: PageDirection) => {
       const advance = () => {
         if (direction === 'next') void rendition.next();
         else void rendition.prev();
@@ -237,8 +264,10 @@ export function EpubReader({ book, bytes }: Props) {
         advance();
         return;
       }
-      runFadeSequence(advance, PAGE_PHASE_MS);
+      runPageFadeSequence(advance, PAGE_PHASE_MS);
     };
+    pageChangeRef.current = triggerPageChange;
+
     const swapResizeListener = () => {
       const stageResize = renditionInternals.manager?.stage?.resizeFunc;
       if (stageResize) {
@@ -264,18 +293,7 @@ export function EpubReader({ book, bytes }: Props) {
     })();
 
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target?.matches('input,textarea,[contenteditable="true"]')) return;
-
-      if (event.key === 'ArrowRight') {
-        event.preventDefault();
-        triggerPageChange('next');
-      }
-
-      if (event.key === 'ArrowLeft') {
-        event.preventDefault();
-        triggerPageChange('prev');
-      }
+      handlePageTurnKeyDown(event, triggerPageChange);
     };
 
     window.addEventListener('keydown', onKeyDown);
@@ -302,6 +320,7 @@ export function EpubReader({ book, bytes }: Props) {
       rendition.destroy();
       epubBook.destroy();
       renditionRef.current = null;
+      pageChangeRef.current = null;
     };
   }, [
     book.epub_locations,
@@ -327,7 +346,7 @@ export function EpubReader({ book, bytes }: Props) {
     <div className="relative h-full w-full overflow-hidden">
       <div
         ref={containerRef}
-        className={`absolute inset-0 transition-opacity ease-out ${notesModeActive ? 'bg-amber-50/30' : ''}`}
+        className="absolute inset-0 transition-opacity ease-out"
         style={{ transitionDuration: `${RESIZE_PHASE_MS}ms` }}
       />
       <div
@@ -341,7 +360,54 @@ export function EpubReader({ book, bytes }: Props) {
           WebkitBackdropFilter: 'blur(12px) saturate(1.05)',
         }}
       />
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-lg"
+        aria-label="Previous EPUB page"
+        title="Previous EPUB page"
+        onClick={() => pageChangeRef.current?.('prev')}
+        className="absolute left-2 top-1/2 z-10 size-11 -translate-y-1/2 rounded-full border border-amber-100 bg-cream/85 text-ink-muted shadow-lg backdrop-blur-md transition hover:bg-white hover:text-ink focus-visible:ring-accent-gold/40 sm:left-4"
+      >
+        <ChevronLeft className="h-7 w-7" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-lg"
+        aria-label="Next EPUB page"
+        title="Next EPUB page"
+        onClick={() => pageChangeRef.current?.('next')}
+        className="absolute right-2 top-1/2 z-10 size-11 -translate-y-1/2 rounded-full border border-amber-100 bg-cream/85 text-ink-muted shadow-lg backdrop-blur-md transition hover:bg-white hover:text-ink focus-visible:ring-accent-gold/40 sm:right-4"
+      >
+        <ChevronRight className="h-7 w-7" />
+      </Button>
     </div>
+  );
+}
+
+function handlePageTurnKeyDown(
+  event: KeyboardEvent,
+  triggerPageChange: (direction: PageDirection) => void,
+): void {
+  if (isEditableTarget(event.target)) return;
+
+  if (event.key === 'ArrowRight') {
+    event.preventDefault();
+    triggerPageChange('next');
+  }
+
+  if (event.key === 'ArrowLeft') {
+    event.preventDefault();
+    triggerPageChange('prev');
+  }
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  const element = target as { matches?: (selector: string) => boolean } | null;
+  return (
+    typeof element?.matches === 'function' &&
+    element.matches('input,textarea,[contenteditable="true"]')
   );
 }
 

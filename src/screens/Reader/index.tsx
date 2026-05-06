@@ -1,5 +1,6 @@
 import { AnimatePresence } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Book } from '../../db/types';
 import { useAppStore } from '../../store';
 import { readBookBytes } from '../../ipc/files';
 import { AgentDisplay } from './AgentDisplay';
@@ -63,9 +64,25 @@ export function ReaderScreen() {
     );
   }
 
+  return <LoadedReaderScreen book={book} bytes={bytes} />;
+}
+
+function LoadedReaderScreen({ book, bytes }: { book: Book; bytes: ArrayBuffer }) {
+  useEffect(() => {
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, []);
+
   return (
     <>
-      <AnimatePresence mode="wait" initial={false}>
+      <AnimatePresence mode="wait">
         {book.display_mode === 'reader' ? (
           <FullReaderDisplay key="reader" book={book} bytes={bytes} />
         ) : (

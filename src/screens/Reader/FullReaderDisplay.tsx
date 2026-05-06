@@ -1,9 +1,13 @@
 import { AnimatePresence, motion } from 'framer-motion';
+import { useRef } from 'react';
 import type { Book } from '../../db/types';
 import { useAppStore } from '../../store';
 import { ReaderChrome } from './ReaderChrome';
 import { ReaderLeaf } from './ReaderLeaf';
-import { NotesModeInput } from './NotesModeInput';
+import {
+  NotesModeInput,
+  type NotesModeInputHandle,
+} from './NotesModeInput';
 import { FloatingLogoInput } from './FloatingLogoInput';
 
 interface Props {
@@ -11,21 +15,45 @@ interface Props {
   bytes: ArrayBuffer;
 }
 
+const displayFade = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.04,
+    },
+  },
+};
+
+const readerPartFade = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1 },
+};
+
+const readerPartTransition = { duration: 0.22, ease: 'easeOut' } as const;
+
 export function FullReaderDisplay({ book, bytes }: Props) {
   const notesModeActive = useAppStore((s) => s.notesModeActive);
+  const notesInputRef = useRef<NotesModeInputHandle | null>(null);
 
   return (
     <motion.div
       className="relative flex h-full w-full flex-col"
-      initial={{ opacity: 0, filter: 'blur(3px)' }}
-      animate={{ opacity: 1, filter: 'blur(0px)' }}
-      exit={{ opacity: 0, filter: 'blur(3px)' }}
-      transition={{ duration: 0.22, ease: 'easeOut' }}
+      variants={displayFade}
+      initial="hidden"
+      animate="visible"
+      exit="hidden"
+      style={{ overflowAnchor: 'none' }}
     >
-      <ReaderChrome book={book} variant="fullscreen" />
-      <div className="relative min-h-0 flex-1">
+      <motion.div variants={readerPartFade} transition={readerPartTransition}>
+        <ReaderChrome book={book} variant="fullscreen" />
+      </motion.div>
+      <motion.div
+        className="relative min-h-0 flex-1"
+        variants={readerPartFade}
+        transition={readerPartTransition}
+      >
         <ReaderLeaf book={book} bytes={bytes} />
-      </div>
+      </motion.div>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center">
         <div className="pointer-events-auto">
@@ -37,8 +65,11 @@ export function FullReaderDisplay({ book, bytes }: Props) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 28 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
+                onAnimationComplete={() => {
+                  notesInputRef.current?.focusInput();
+                }}
               >
-                <NotesModeInput book={book} fullWidth />
+                <NotesModeInput ref={notesInputRef} book={book} fullWidth />
               </motion.div>
             ) : (
               <motion.div

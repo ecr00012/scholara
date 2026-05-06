@@ -43,7 +43,6 @@ export function PdfReader({ book, bytes }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const notes = useAppStore((state) => state.currentBookNotes);
-  const notesModeActive = useAppStore((state) => state.notesModeActive);
   const setBookCurrentPosition = useAppStore(
     (state) => state.setBookCurrentPosition,
   );
@@ -322,7 +321,7 @@ export function PdfReader({ book, bytes }: Props) {
   return (
     <div
       ref={containerRef}
-      className={`absolute inset-0 overflow-y-auto ${notesModeActive ? 'bg-amber-50/30' : ''}`}
+      className="absolute inset-0 overflow-y-auto"
     >
       <div className="mx-auto flex w-fit flex-col gap-4 py-6">
         {pageMetrics.map((metric, index) => (
