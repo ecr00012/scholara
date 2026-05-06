@@ -41,7 +41,7 @@ describe('notes', () => {
     ).rejects.toThrow();
   });
 
-  it('listNotesForBook orders by created_at ASC then id ASC', async () => {
+  it('listNotesForBook orders by created_at DESC then id DESC', async () => {
     await notesDb.insertNote(db, {
       book_id: bookId, page_or_position: '{}', note_text: 'a', quote_text: null,
     });
@@ -49,7 +49,7 @@ describe('notes', () => {
       book_id: bookId, page_or_position: '{}', note_text: 'b', quote_text: null,
     });
     const rows = await notesDb.listNotesForBook(db, bookId);
-    expect(rows.map((r) => r.note_text)).toEqual(['a', 'b']);
+    expect(rows.map((r) => r.note_text)).toEqual(['b', 'a']);
   });
 
   it('deleteNote removes the row', async () => {

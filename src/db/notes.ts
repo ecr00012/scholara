@@ -17,7 +17,7 @@ export async function listNotesForBook(
     `SELECT id, book_id, page_or_position, note_text, quote_text, created_at
      FROM notes
      WHERE book_id = ?
-     ORDER BY datetime(created_at) ASC, id ASC`,
+     ORDER BY datetime(created_at) DESC, id DESC`,
     [bookId],
   );
 }

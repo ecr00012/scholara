@@ -5,6 +5,7 @@ import { AgentDisplay } from './AgentDisplay';
 import { DictionaryModal } from './DictionaryModal';
 import { FullReaderDisplay } from './FullReaderDisplay';
 import { MissingFileScreen } from './MissingFileScreen';
+import { NotePeek } from './NotePeek';
 import { SelectionToolbar } from './SelectionToolbar';
 
 export function ReaderScreen() {
@@ -69,6 +70,7 @@ export function ReaderScreen() {
         <AgentDisplay book={book} bytes={bytes} />
       )}
       <SelectionToolbar book={book} />
+      <NotePeek />
       <DictionaryModal />
     </>
   );

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { Book } from '../../../db/types';
 import { useAppStore } from '../../../store';
 import { NotesList } from './NotesTab';
@@ -7,8 +8,10 @@ interface Props {
 }
 
 export function HighlightsTab({ book: _book }: Props) {
-  const notes = useAppStore((state) =>
-    state.currentBookNotes.filter((note) => note.quote_text !== null),
+  const currentBookNotes = useAppStore((state) => state.currentBookNotes);
+  const notes = useMemo(
+    () => currentBookNotes.filter((note) => note.quote_text !== null),
+    [currentBookNotes],
   );
 
   return <NotesList emptyMessage="No highlights yet." notes={notes} />;

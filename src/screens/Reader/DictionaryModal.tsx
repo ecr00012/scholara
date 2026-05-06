@@ -65,7 +65,7 @@ export function DictionaryModal() {
   }, [currentBookId, insertVocab]);
 
   useEffect(() => {
-    if (state.kind !== 'aborted' && state.kind !== 'done') return;
+    if (state.kind !== 'aborted') return;
 
     const timeoutId = window.setTimeout(() => {
       setState({ kind: 'idle' });

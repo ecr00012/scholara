@@ -14,8 +14,8 @@ export function AgentDisplay({ book, bytes }: Props) {
   const notesModeActive = useAppStore((s) => s.notesModeActive);
 
   return (
-    <div className="grid h-full grid-cols-[1fr_22rem]">
-      <section className="flex min-w-0 flex-col">
+    <div className="grid h-screen grid-cols-[1fr_22rem] grid-rows-1 overflow-hidden">
+      <section className="flex min-h-0 min-w-0 flex-col">
         <ReaderChrome book={book} variant="split" />
         <div className="relative min-h-0 flex-1">
           <ReaderLeaf book={book} bytes={bytes} />
@@ -27,7 +27,7 @@ export function AgentDisplay({ book, bytes }: Props) {
         ) : null}
       </section>
 
-      <aside className="flex min-w-0 flex-col border-l border-stone-200 bg-cream/50">
+      <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-stone-200 bg-cream/50">
         <AgentPanel book={book} />
       </aside>
     </div>

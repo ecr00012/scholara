@@ -19,6 +19,8 @@ Scholara is an offline-first desktop reading and study app — Google NotebookLM
 - **Platform:** Cross-platform (macOS, Windows, Linux). All IPC and file paths must be cross-platform.
 - **No SSR.**
 
+Note: Commit after every significant modification/task/isolated section of a plan
+
 ## Build & Dev Commands
 
 ```
@@ -28,6 +30,16 @@ npm test               # tests
 npm run lint           # lint
 ```
 
+## Debugging Rules
+- When tasked with fixing, recognizing, or finding a bug, you MUST present the issue, consider the root cause of the bug symptom, and present the issue + plan.
+- Only after a plan is approve can you move on to implementing fixes.
+
+## Version Control
+- Always commit when: 
+* bug fix complete
+* significant plan/spec written
+* new feature implemented
+* significant task/set of tasks completed in a large feature implementation
 
 ## Database Schema
 

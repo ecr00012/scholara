@@ -2,6 +2,8 @@ import { Trash2 } from 'lucide-react';
 import type { Book, NoteRow } from '../../../db/types';
 import { useAppStore } from '../../../store';
 
+const OPEN_NOTE_EVENT = 'scholara:open-note';
+
 interface Props {
   book: Book;
 }
@@ -31,12 +33,22 @@ export function NotesList({ emptyMessage, notes }: NoteListProps) {
 
         return (
           <li key={note.id} className="rounded-2xl border border-stone-200 bg-cream p-3">
-            {note.quote_text ? (
-              <p className="mb-2 text-sm italic text-ink/80">
-                &ldquo;{note.quote_text}&rdquo;
-              </p>
-            ) : null}
-            {note.note_text ? <p className="text-sm text-ink">{note.note_text}</p> : null}
+            <button
+              type="button"
+              className="block w-full text-left"
+              onClick={() => openNote(note.id)}
+            >
+              {note.quote_text ? (
+                <p className="mb-2 rounded-2xl border border-accent-orange/25 bg-accent-orange/10 px-3 py-1.5 font-serif text-sm italic text-accent-orange">
+                  &ldquo;{note.quote_text}&rdquo;
+                </p>
+              ) : null}
+              {note.note_text ? (
+                <p className="text-sm leading-6 text-ink">{note.note_text}</p>
+              ) : (
+                <p className="text-sm text-ink-muted">Highlight</p>
+              )}
+            </button>
             <div className="mt-2 flex items-center justify-between text-xs text-ink-muted">
               <span>{label}</span>
               <button
@@ -55,6 +67,10 @@ export function NotesList({ emptyMessage, notes }: NoteListProps) {
       })}
     </ul>
   );
+}
+
+function openNote(noteId: number): void {
+  window.dispatchEvent(new CustomEvent<number>(OPEN_NOTE_EVENT, { detail: noteId }));
 }
 
 function readNoteLabel(pageOrPosition: string): string {

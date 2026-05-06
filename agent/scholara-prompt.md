@@ -12,7 +12,7 @@
 - **Database:** SQLite via `tauri-plugin-sql`. No other storage layer.
 - **File system access:** All file system operations must go through Tauri IPC commands (`invoke`). No direct Node.js or browser FS access.
 - **LLM orchestration:** LangChain (TypeScript) wrapping the Anthropic API.
-- **Model:** `claude-sonnet-4-20250514` only. No other model.
+- **Model:** claude haiku only. No other model.
 - **Streaming:** All LLM responses must stream in real time (token by token).
 - **Auth:** No accounts, no authentication, no online backend of any kind.
 - **API key:** User provides their own Anthropic API key. Store it locally (SQLite or secure Tauri store). Never hardcode it.
@@ -23,7 +23,7 @@
 
 ## Deferred — Do Not Build in This Session
 
-- The brain particle animation (WebGL / Three.js / Particles.js) on the home screen. Reserve the top-right space with a placeholder div.
+- Graphic/animation on the home screen. Reserve the top-right space with a placeholder div.
 - Daily AI insights / push notifications (future feature).
 
 ---
@@ -53,7 +53,7 @@ The main landing page. Apple Libraries–inspired aesthetic — clean, professio
 
 **Layout:**
 - Main content area: a grid of book tiles with cover art. Each tile is clickable and opens the book overlay.
-- Top-right: a reserved placeholder `div` for the future brain particle animation (label it clearly in code as `// DEFERRED: WebGL brain animation`).
+- Top-right: a reserved placeholder `div` 
 - Right panel (rightmost ~20%, below the placeholder): a circularly scrolling **Vocabulary / Notes / Quotes** strip.
   - Displays saved vocabulary words (with definition) and quotes, ordered by recency, looping continuously.
   - Clicking this panel opens a **Global Dictionary & Notes** modal:
@@ -169,6 +169,7 @@ If neither RAG strategy can answer the question appropriately → invoke web sea
 - The user can tap/click the modal to dismiss it with a fade-out animation.
 - The word + definition is saved to the `vocabulary` table, associated with the current book.
 - The Global Dictionary (accessible from the home screen panel) shows vocabulary across all books.
+- This is not an LLM feature. This feature needs to use a popular english npm package or similar implementation.
 
 ---
 
@@ -198,4 +199,3 @@ A working Tauri app where a user can:
 6. Return to the Library and see saved vocabulary in the scrolling side panel.
 7. Enter their Anthropic API key in Settings and have it persist.
 
-The brain particle animation and daily insights feature are explicitly out of scope for this session.

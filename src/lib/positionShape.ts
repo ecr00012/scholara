@@ -5,6 +5,14 @@ export type Position =
 export interface EpubQuoteRange {
   start: Extract<Position, { type: 'epub' }>;
   end:   Extract<Position, { type: 'epub' }>;
+  /**
+   * Canonical epub.js range CFI as returned by `contents.cfiFromRange(...)`.
+   * Required to render annotations: epub.js range CFIs have the shape
+   * `epubcfi(base!common,startTail,endTail)` and cannot be reconstructed by
+   * concatenating two collapsed point CFIs. Optional for backwards
+   * compatibility with notes saved before this field was added.
+   */
+  cfiRange?: string;
 }
 
 export interface PdfQuoteRange {

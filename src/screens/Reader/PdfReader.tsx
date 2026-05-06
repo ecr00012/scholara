@@ -11,6 +11,7 @@ import { applyPdfAnnotations } from './annotations/PdfAnnotations';
 const RENDER_SCALE = 1.5;
 const ROOT_MARGIN = '500px 0px';
 const POSITION_SAVE_DEBOUNCE_MS = 500;
+const OPEN_NOTE_EVENT = 'scholara:open-note';
 
 interface Props {
   book: Book;
@@ -26,6 +27,7 @@ interface SelectionDetail {
   kind: 'word' | 'range';
   text: string;
   range: PdfQuoteRange;
+  rect?: { x: number; y: number };
 }
 
 export function PdfReader({ book, bytes }: Props) {
@@ -37,6 +39,7 @@ export function PdfReader({ book, bytes }: Props) {
 
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [pageMetrics, setPageMetrics] = useState<PageMetric[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const notes = useAppStore((state) => state.currentBookNotes);
   const notesModeActive = useAppStore((state) => state.notesModeActive);
@@ -56,29 +59,37 @@ export function PdfReader({ book, bytes }: Props) {
     pageRefs.current = [];
     setPdf(null);
     setPageMetrics([]);
+    setLoadError(null);
 
     void (async () => {
-      loadingTask = pdfjs.getDocument({ data: bytes });
-      const doc = await loadingTask.promise;
-      if (cancelled) {
-        await doc.destroy();
-        return;
-      }
+      try {
+        const data = bytes.slice(0);
+        loadingTask = pdfjs.getDocument({ data });
+        const doc = await loadingTask.promise;
+        if (cancelled) {
+          await doc.destroy();
+          return;
+        }
 
-      const metrics: PageMetric[] = [];
-      for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
-        const page = await doc.getPage(pageNumber);
-        const viewport = page.getViewport({ scale: RENDER_SCALE });
-        metrics.push({ width: viewport.width, height: viewport.height });
-      }
+        const metrics: PageMetric[] = [];
+        for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
+          const page = await doc.getPage(pageNumber);
+          const viewport = page.getViewport({ scale: RENDER_SCALE });
+          metrics.push({ width: viewport.width, height: viewport.height });
+        }
 
-      if (cancelled) {
-        await doc.destroy();
-        return;
-      }
+        if (cancelled) {
+          await doc.destroy();
+          return;
+        }
 
-      setPdf(doc);
-      setPageMetrics(metrics);
+        setPdf(doc);
+        setPageMetrics(metrics);
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError((error as Error).message || 'Could not load PDF.');
+        }
+      }
     })();
 
     return () => {
@@ -272,9 +283,28 @@ export function PdfReader({ book, bytes }: Props) {
       void captureSelection(pdf, pageRefs.current);
     };
 
+    const handleContextMenu = (event: MouseEvent) => {
+      const text = window.getSelection()?.toString().trim() ?? '';
+      if (!text) return;
+      event.preventDefault();
+      void captureSelection(pdf, pageRefs.current);
+    };
+
     root.addEventListener('mouseup', handleMouseUp);
-    return () => root.removeEventListener('mouseup', handleMouseUp);
+    root.addEventListener('contextmenu', handleContextMenu);
+    return () => {
+      root.removeEventListener('mouseup', handleMouseUp);
+      root.removeEventListener('contextmenu', handleContextMenu);
+    };
   }, [pdf]);
+
+  if (loadError) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-ink-muted">
+        Could not load PDF: {loadError}
+      </div>
+    );
+  }
 
   if (!pdf || pageMetrics.length === 0) {
     return (
@@ -339,19 +369,33 @@ async function renderPage(
   container.appendChild(textLayer);
 
   const textContent = await page.getTextContent();
-  const renderTextLayer = (
-    pdfjs as unknown as {
-      renderTextLayer?: (args: {
-        textContentSource: Awaited<ReturnType<PDFPageProxy['getTextContent']>>;
-        container: HTMLElement;
-        viewport: ReturnType<PDFPageProxy['getViewport']>;
-        textDivs: HTMLElement[];
-      }) => { promise: Promise<void> };
-    }
-  ).renderTextLayer;
+  // pdf.js v4 replaced the standalone `renderTextLayer()` function with a
+  // `TextLayer` class. We support both shapes so the text layer is actually
+  // populated; otherwise selection rects from the textLayer come up empty
+  // and quote highlighting silently no-ops.
+  const pdfjsAny = pdfjs as unknown as {
+    renderTextLayer?: (args: {
+      textContentSource: Awaited<ReturnType<PDFPageProxy['getTextContent']>>;
+      container: HTMLElement;
+      viewport: ReturnType<PDFPageProxy['getViewport']>;
+      textDivs: HTMLElement[];
+    }) => { promise: Promise<void> };
+    TextLayer?: new (args: {
+      textContentSource: Awaited<ReturnType<PDFPageProxy['getTextContent']>>;
+      container: HTMLElement;
+      viewport: ReturnType<PDFPageProxy['getViewport']>;
+    }) => { render(): Promise<void> };
+  };
 
-  if (renderTextLayer) {
-    await renderTextLayer({
+  if (typeof pdfjsAny.TextLayer === 'function') {
+    const layer = new pdfjsAny.TextLayer({
+      textContentSource: textContent,
+      container: textLayer,
+      viewport,
+    });
+    await layer.render();
+  } else if (pdfjsAny.renderTextLayer) {
+    await pdfjsAny.renderTextLayer({
       textContentSource: textContent,
       container: textLayer,
       viewport,
@@ -370,7 +414,11 @@ async function applyAnnotationsForPage(
 ) {
   const page = await pdf.getPage(pageNumber);
   const viewport = page.getViewport({ scale: RENDER_SCALE });
-  applyPdfAnnotations(pageNumber, container, viewport, notes);
+  applyPdfAnnotations(pageNumber, container, viewport, notes, (noteId) => {
+    window.dispatchEvent(
+      new CustomEvent<number>(OPEN_NOTE_EVENT, { detail: noteId }),
+    );
+  });
 }
 
 async function captureSelection(
@@ -382,37 +430,57 @@ async function captureSelection(
   if (!selection || selection.rangeCount === 0 || !text) return;
 
   const range = selection.getRangeAt(0);
+  const selectionBounds = range.getBoundingClientRect();
   const rects = Array.from(range.getClientRects());
   const perPage = new Map<number, Array<{ x: number; y: number; w: number; h: number }>>();
 
   for (const rect of rects) {
+    if (rect.width <= 0 || rect.height <= 0) continue;
+
+    // Pick the page that overlaps this client rect the most, rather than
+    // requiring strict containment. Multi-line selections from the pdf.js
+    // text layer occasionally produce rects whose edges sit a fraction of
+    // a pixel outside the page box, which would otherwise drop them.
+    let bestIndex = -1;
+    let bestOverlap = 0;
+    let bestPageRect: DOMRect | null = null;
+
     for (let index = 0; index < pageElements.length; index += 1) {
       const pageEl = pageElements[index];
       if (!pageEl) continue;
 
       const pageRect = pageEl.getBoundingClientRect();
-      const insideHorizontally =
-        rect.left >= pageRect.left - 1 && rect.right <= pageRect.right + 1;
-      const insideVertically =
-        rect.top >= pageRect.top - 1 && rect.bottom <= pageRect.bottom + 1;
-
-      if (!insideHorizontally || !insideVertically) continue;
-
-      const pageNumber = index + 1;
-      const localRect = {
-        x: rect.left - pageRect.left,
-        y: rect.top - pageRect.top,
-        w: rect.width,
-        h: rect.height,
-      };
-      const page = await pdf.getPage(pageNumber);
-      const viewport = page.getViewport({ scale: RENDER_SCALE });
-      const pdfRect = viewportRectToPdfRect(localRect, viewport);
-      const currentRects = perPage.get(pageNumber) ?? [];
-      currentRects.push(pdfRect);
-      perPage.set(pageNumber, currentRects);
-      break;
+      const overlapX = Math.max(
+        0,
+        Math.min(rect.right, pageRect.right) - Math.max(rect.left, pageRect.left),
+      );
+      const overlapY = Math.max(
+        0,
+        Math.min(rect.bottom, pageRect.bottom) - Math.max(rect.top, pageRect.top),
+      );
+      const overlap = overlapX * overlapY;
+      if (overlap > bestOverlap) {
+        bestOverlap = overlap;
+        bestIndex = index;
+        bestPageRect = pageRect;
+      }
     }
+
+    if (bestIndex < 0 || !bestPageRect) continue;
+
+    const pageNumber = bestIndex + 1;
+    const localRect = {
+      x: rect.left - bestPageRect.left,
+      y: rect.top - bestPageRect.top,
+      w: rect.width,
+      h: rect.height,
+    };
+    const page = await pdf.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: RENDER_SCALE });
+    const pdfRect = viewportRectToPdfRect(localRect, viewport);
+    const currentRects = perPage.get(pageNumber) ?? [];
+    currentRects.push(pdfRect);
+    perPage.set(pageNumber, currentRects);
   }
 
   if (perPage.size === 0) return;
@@ -446,6 +514,19 @@ async function captureSelection(
         kind: text.split(/\s+/).length === 1 ? 'word' : 'range',
         text,
         range: quoteRange,
+        rect:
+          selectionBounds.width > 0 || selectionBounds.height > 0
+            ? {
+                x: Math.min(
+                  Math.max(selectionBounds.left + selectionBounds.width / 2, 16),
+                  window.innerWidth - 16,
+                ),
+                y: Math.min(
+                  Math.max(selectionBounds.bottom + 10, 16),
+                  window.innerHeight - 64,
+                ),
+              }
+            : undefined,
       },
     }),
   );

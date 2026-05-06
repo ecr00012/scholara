@@ -16,6 +16,7 @@ export function applyPdfAnnotations(
   pageContainer: HTMLElement,
   pageViewport: ViewportLike & { width: number; height: number },
   notes: NoteRow[],
+  onOpenNote?: (noteId: number) => void,
 ): void {
   pageContainer.querySelectorAll('.scholara-annotation').forEach((node) => {
     node.remove();
@@ -54,7 +55,12 @@ export function applyPdfAnnotations(
           `background: ${ORANGE}`,
           'pointer-events: auto',
           'cursor: pointer',
+          'z-index: 5',
         ].join(';');
+        underline.addEventListener('click', (event) => {
+          event.stopPropagation();
+          onOpenNote?.(note.id);
+        });
         pageContainer.appendChild(underline);
 
         if (quoteEndsOnThisPage) {

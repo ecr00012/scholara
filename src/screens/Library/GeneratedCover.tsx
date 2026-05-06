@@ -137,6 +137,7 @@ function wrapTitle(title: string, maxCharsPerLine: number): string[] {
 
 function GeneratedCoverImpl({ title, author, imageSrc, progress }: Props) {
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgFailed, setImgFailed] = useState(false);
   const hash = fnv1a32(title);
   const palette = pickPalette(hash);
   const pattern = pickPattern(hash);
@@ -145,12 +146,13 @@ function GeneratedCoverImpl({ title, author, imageSrc, progress }: Props) {
   const charsPerLine = Math.max(6, Math.floor(180 / (fontSize * 0.55)));
   const lines = wrapTitle(title, charsPerLine);
   const coverSrc = useMemo(
-    () => (imageSrc ? convertFileSrc(imageSrc) : null),
+    () => (imageSrc ? convertFileSrc(imageSrc, 'asset') : null),
     [imageSrc],
   );
 
   useEffect(() => {
     setImgLoaded(false);
+    setImgFailed(false);
   }, [coverSrc]);
 
   return (
@@ -216,11 +218,12 @@ function GeneratedCoverImpl({ title, author, imageSrc, progress }: Props) {
         />
       </svg>
 
-      {coverSrc && (
+      {coverSrc && !imgFailed && (
         <img
           src={coverSrc}
           alt={`${title} cover`}
           onLoad={() => setImgLoaded(true)}
+          onError={() => setImgFailed(true)}
           className={`absolute inset-0 h-full w-full rounded-md object-cover shadow-sm transition-opacity duration-[250ms] ${
             imgLoaded ? 'opacity-100' : 'opacity-0'
           }`}
