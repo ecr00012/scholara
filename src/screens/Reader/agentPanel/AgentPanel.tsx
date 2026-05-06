@@ -15,7 +15,7 @@ export function AgentPanel({ book }: Props) {
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex h-full flex-col">
-      <div className="border-b border-stone-200 px-2 py-2">
+      <div className="flex h-14 items-center border-b border-stone-200 px-2">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="chat">AI Chat</TabsTrigger>
           <TabsTrigger value="notes">Notes</TabsTrigger>

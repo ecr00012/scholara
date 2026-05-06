@@ -28,9 +28,11 @@ export function ReaderChrome({ book, variant: _variant }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   }, [notesModeActive, setNotesModeActive]);
 
+  const label = readableLabel(book);
+
   return (
-    <div className="border-b border-stone-200 bg-cream/80 backdrop-blur">
-      <div className="flex items-center justify-between px-4 py-2">
+    <div className="flex h-14 items-center justify-between border-b border-stone-200 bg-cream/80 px-4 backdrop-blur">
+      <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
           onClick={closeBook}
@@ -38,34 +40,32 @@ export function ReaderChrome({ book, variant: _variant }: Props) {
         >
           ← Library
         </button>
-        <ModeToggle
-          value={book.display_mode}
-          onChange={(mode) => {
-            void setBookDisplayMode(book.id, mode);
-          }}
-        />
-        <button
-          type="button"
-          aria-label="Take a note (n)"
-          title="Take a note (n)"
-          onClick={() => setNotesModeActive(!notesModeActive)}
-          className="rounded p-1 transition"
-        >
-          <Feather
-            className="h-5 w-5"
-            style={
-              notesModeActive
-                ? { color: ORANGE, fill: ORANGE }
-                : { color: ORANGE, fill: 'transparent' }
-            }
-          />
-        </button>
+        {label ? (
+          <span className="truncate text-xs text-ink-muted">{label}</span>
+        ) : null}
       </div>
-      {readableLabel(book) ? (
-        <div className="flex justify-center pb-1 text-xs text-ink-muted">
-          {readableLabel(book)}
-        </div>
-      ) : null}
+      <ModeToggle
+        value={book.display_mode}
+        onChange={(mode) => {
+          void setBookDisplayMode(book.id, mode);
+        }}
+      />
+      <button
+        type="button"
+        aria-label="Take a note (n)"
+        title="Take a note (n)"
+        onClick={() => setNotesModeActive(!notesModeActive)}
+        className="rounded p-1 transition"
+      >
+        <Feather
+          className="h-5 w-5"
+          style={
+            notesModeActive
+              ? { color: ORANGE, fill: ORANGE }
+              : { color: ORANGE, fill: 'transparent' }
+          }
+        />
+      </button>
     </div>
   );
 }

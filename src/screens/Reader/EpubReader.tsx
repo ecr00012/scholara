@@ -9,7 +9,6 @@ import ePub, {
 import type { Book } from '../../db/types';
 import type { EpubQuoteRange, Position } from '../../lib/positionShape';
 import { useAppStore } from '../../store';
-import { ANNOTATION_UNDERLINE_PX, ORANGE } from '../../lib/theme';
 import { applyEpubAnnotations } from './annotations/EpubAnnotations';
 
 const OPEN_NOTE_EVENT = 'scholara:open-note';
