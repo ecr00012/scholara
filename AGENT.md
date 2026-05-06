@@ -36,9 +36,26 @@ When a user requests new features: If large, involves a complex/complicated impl
 Act as main orchestrator and reviewer. You must have your own understanding of the relevant files and expected final state.
 Require subagents to identify the functionality that causes current behavior and then present a very concise implementation plan for your review.
 
+Codex MUST pause before implementation and state that this requires subagent-driven development.
+
+Codex should then ask for explicit approval to use subagents if the current environment requires user permission for delegation.
+
+Required sequence:
+1. Main agent reads relevant files and forms its own understanding.
+2. Main agent decomposes the work into small, independent tasks.
+3. Subagents inspect assigned areas and return:
+   - current behavior/root cause,
+   - concise implementation plan,
+   - files likely affected.
+4. Main agent reviews the plans.
+5. Only after approval, orchestrator orders subagents to begin implementation.
+6. Main agent reviews and approves results.
+
 ## Debugging Rules
 - When tasked with fixing, recognizing, or finding a bug, you MUST present the issue, consider the root cause of the bug symptom, and present the issue + plan.
-- Only after a plan is approve can you move on to implementing fixes.
+- Only after a plan is approved can you move on to implementing fixes.
+- When a request includes both bug fixes and feature work, the subagent gate runs first.
+The debugging issue/root-cause/plan requirement is satisfied through the main agent’s reviewed plan after subagents report back.
 
 ## Version Control
 - Always commit when: 

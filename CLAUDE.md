@@ -28,9 +28,15 @@ npm test               # tests
 npm run lint           # lint
 ```
 
+## Development Conventions
+When a user requests new features: If large, involves a complex/complicated implementation, or more than one new feature, separate the work into smaller tasks implement using subagent-driven development.
+
+Act as main orchestrator and reviewer. You must have your own understanding of the relevant files and expected final state.
+Require subagents to identify the functionality that causes current behavior and then present a very concise implementation plan for your review.
+
 ## Debugging Rules
 - When tasked with fixing, recognizing, or finding a bug, you MUST present the issue, consider the root cause of the bug symptom, and present the issue + plan.
-- Only after a plan is approve can you move on to implementing fixes.
+- Only after a plan is approved can you move on to implementing fixes.
 
 ## Version Control
 - Always commit when: 
