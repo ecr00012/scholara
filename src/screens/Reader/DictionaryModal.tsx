@@ -1,7 +1,13 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { streamWordDefinition, type DefinitionStream } from '../../llm/dictionary';
+import {
+  DefinitionNotFoundError,
+  formatSensesForStorage,
+  lookupWord,
+  OfflineDictionaryError,
+  type DefinitionResult,
+} from '../../dictionary/lookup';
 import { useAppStore } from '../../store';
 
 const OPEN_EVENT = 'scholara:open-dictionary';
@@ -12,79 +18,74 @@ export function dispatchOpenDictionary(word: string) {
 
 type ModalState =
   | { kind: 'idle' }
-  | { kind: 'streaming'; word: string; partial: string }
-  | { kind: 'done'; word: string; full: string }
-  | { kind: 'aborted' };
+  | { kind: 'loading'; word: string }
+  | { kind: 'done'; word: string; result: DefinitionResult }
+  | { kind: 'closing' };
 
 export function DictionaryModal() {
   const currentBookId = useAppStore((state) => state.currentBookId);
   const insertVocab = useAppStore((state) => state.insertVocabForCurrentBook);
   const [state, setState] = useState<ModalState>({ kind: 'idle' });
-  const streamRef = useRef<DefinitionStream | null>(null);
 
   useEffect(() => {
+    let activeWord: string | null = null;
+
     const handleOpen = (event: Event) => {
       const word = (event as CustomEvent<string>).detail;
       if (!currentBookId) return;
 
-      streamRef.current?.abort();
-      const stream = streamWordDefinition(word);
-      streamRef.current = stream;
-      setState({ kind: 'streaming', word, partial: '' });
+      activeWord = word;
+      setState({ kind: 'loading', word });
 
       void (async () => {
         try {
-          for await (const token of stream.tokens) {
-            setState((current) =>
-              current.kind === 'streaming' && current.word === word
-                ? { ...current, partial: current.partial + token }
-                : current,
-            );
-          }
-
-          const full = await stream.done;
-          setState({ kind: 'done', word, full });
+          const result = await lookupWord(word);
+          if (activeWord !== word) return;
+          setState({ kind: 'done', word, result });
 
           try {
-            await insertVocab({ word, definition: full });
+            await insertVocab({
+              word,
+              definition: formatSensesForStorage(result.senses),
+            });
           } catch (error) {
             console.warn('Could not save dictionary entry:', error);
             toast.error('Could not save to dictionary.');
           }
         } catch (error) {
-          if ((error as Error).message !== 'aborted') {
+          if (activeWord !== word) return;
+          if (error instanceof OfflineDictionaryError) {
+            toast.error(error.message);
+          } else if (error instanceof DefinitionNotFoundError) {
+            toast.error(error.message);
+          } else {
             console.error(error);
+            toast.error('Could not look up that word.');
           }
-          setState({ kind: 'aborted' });
+          setState({ kind: 'closing' });
         }
       })();
     };
 
     window.addEventListener(OPEN_EVENT, handleOpen);
-    return () => window.removeEventListener(OPEN_EVENT, handleOpen);
+    return () => {
+      window.removeEventListener(OPEN_EVENT, handleOpen);
+    };
   }, [currentBookId, insertVocab]);
 
   useEffect(() => {
-    if (state.kind !== 'aborted') return;
-
-    const timeoutId = window.setTimeout(() => {
-      setState({ kind: 'idle' });
-    }, 350);
-
+    if (state.kind !== 'closing') return;
+    const timeoutId = window.setTimeout(() => setState({ kind: 'idle' }), 250);
     return () => window.clearTimeout(timeoutId);
   }, [state.kind]);
 
   function dismiss() {
-    if (state.kind === 'streaming') {
-      streamRef.current?.abort();
-      setState({ kind: 'aborted' });
-      return;
-    }
-
     setState({ kind: 'idle' });
   }
 
-  const visible = state.kind === 'streaming' || state.kind === 'done';
+  const visible = state.kind === 'loading' || state.kind === 'done';
+  const word =
+    state.kind === 'loading' || state.kind === 'done' ? state.word : '';
 
   return (
     <AnimatePresence>
@@ -100,16 +101,29 @@ export function DictionaryModal() {
           transition={{ duration: 0.2 }}
           onClick={dismiss}
         >
-          <p className="font-serif text-[22px] text-ink">
-            {state.word}
-          </p>
+          <p className="font-serif text-[22px] text-ink">{word}</p>
           <div className="my-3 h-px bg-stone-200" />
-          <p className="text-base leading-7 text-ink/80">
-            {state.kind === 'streaming' ? state.partial : state.full}
-            {state.kind === 'streaming' ? (
-              <span className="animate-pulse text-ink-muted">▌</span>
-            ) : null}
-          </p>
+          {state.kind === 'loading' ? (
+            <p className="text-base leading-7 text-ink-muted">
+              Looking up<span className="animate-pulse">…</span>
+            </p>
+          ) : state.kind === 'done' ? (
+            <ul className="flex flex-col gap-2">
+              {state.result.senses.map((sense, idx) => (
+                <li key={idx} className="text-base leading-7 text-ink/80">
+                  {sense.pos ? (
+                    <span className="font-serif italic text-ink-muted">{sense.pos} · </span>
+                  ) : null}
+                  {sense.gloss}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {state.kind === 'done' && state.result.source === 'wiktionary' ? (
+            <p className="mt-3 text-xs uppercase tracking-wide text-ink-muted">
+              via Wiktionary
+            </p>
+          ) : null}
         </motion.div>
       ) : null}
     </AnimatePresence>

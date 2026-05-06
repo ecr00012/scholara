@@ -5,6 +5,7 @@ use commands::books::{
     reveal_in_file_manager, save_cover_bytes,
 };
 use commands::secrets::{get_api_key, set_api_key};
+use commands::wordnet::{lookup_wordnet, WordnetState};
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -25,6 +26,7 @@ pub fn run() {
     ];
 
     tauri::Builder::default()
+        .manage(WordnetState::default())
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations("sqlite:scholara.db", migrations)
@@ -41,6 +43,7 @@ pub fn run() {
             delete_book_files,
             get_api_key,
             set_api_key,
+            lookup_wordnet,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
