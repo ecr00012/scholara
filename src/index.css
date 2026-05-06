@@ -47,3 +47,19 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* EPUB quote underlines. marks-pane mounts its SVG in the parent document
+   (overlaid on the iframe), so these rules must live here, not inside the
+   epub.js iframe stylesheet. epub.js forces stroke:black onto the parent
+   <g>, which inherits to the per-rect <rect> — null it out, then color the
+   underline <line> via CSS (CSS overrides marks-pane's setAttribute). */
+.scholara-quote-underline rect {
+  stroke: none;
+}
+.scholara-quote-underline line {
+  stroke: #C8702C;
+  stroke-width: 2.5;
+  stroke-opacity: 1;
+  stroke-linecap: round;
+  mix-blend-mode: normal;
+}

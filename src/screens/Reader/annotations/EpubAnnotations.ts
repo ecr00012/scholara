@@ -1,11 +1,11 @@
 import type { Rendition } from 'epubjs';
 import type { NoteRow } from '../../../db/types';
-import { ANNOTATION_UNDERLINE_PX, ORANGE } from '../../../lib/theme';
-import { isQuoteRange } from '../../../lib/positionShape';
+import { isQuoteRange, type EpubQuoteRange } from '../../../lib/positionShape';
 
 export function applyEpubAnnotations(
   rendition: Rendition,
   notes: NoteRow[],
+  onOpenNote?: (noteId: number) => void,
 ): { detach(): void } {
   const cfis: string[] = [];
 
@@ -23,19 +23,30 @@ export function applyEpubAnnotations(
       continue;
     }
 
-    const cfi = `${parsed.start.locator},${parsed.end.locator}`;
+    const epubRange = parsed as EpubQuoteRange;
+
+    // Prefer the canonical range CFI emitted by `contents.cfiFromRange(...)`.
+    // Older notes (saved before `cfiRange` was added) only have collapsed
+    // start/end CFIs — fall back to a best-effort comma join so they at least
+    // surface in the rendition's annotation store, even if epub.js may not
+    // resolve them to a real DOM range.
+    const cfi =
+      epubRange.cfiRange ??
+      `${epubRange.start.locator},${epubRange.end.locator}`;
     cfis.push(cfi);
 
+    // Styling lives in the app's parent-document stylesheet (src/index.css).
+    // marks-pane mounts its SVG layer over the iframe in the parent DOM, so
+    // iframe CSS can't reach these nodes. Without those rules, epub.js's
+    // default stroke:black on the parent <g> inherits to the per-rect <rect>
+    // and renders as a box around the selection.
     rendition.annotations.add(
       'underline',
       cfi,
       { noteId: note.id },
-      undefined,
+      () => onOpenNote?.(note.id),
       'scholara-quote-underline',
-      {
-        'text-decoration-color': ORANGE,
-        'text-decoration-thickness': `${ANNOTATION_UNDERLINE_PX}px`,
-      },
+      {},
     );
   }
 
