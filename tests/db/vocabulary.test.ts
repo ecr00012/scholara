@@ -17,9 +17,10 @@ beforeEach(async () => {
 
 describe('vocabulary', () => {
   it('insertVocabulary + listVocabularyForBook', async () => {
-    await vocabDb.insertVocabulary(db, {
+    const result = await vocabDb.insertVocabulary(db, {
       word: 'serendipity', definition: 'happy chance', book_id: bookId,
     });
+    expect(result).toEqual({ inserted: true, id: expect.any(Number) });
     const rows = await vocabDb.listVocabularyForBook(db, bookId);
     expect(rows).toHaveLength(1);
     expect(rows[0].word).toBe('serendipity');
@@ -43,10 +44,66 @@ describe('vocabulary', () => {
   });
 
   it('deleteVocabulary removes the row', async () => {
-    const id = await vocabDb.insertVocabulary(db, {
+    const result = await vocabDb.insertVocabulary(db, {
       word: 'x', definition: 'y', book_id: bookId,
     });
-    await vocabDb.deleteVocabulary(db, id);
+    expect(result.inserted).toBe(true);
+    await vocabDb.deleteVocabulary(db, result.id!);
     expect(await vocabDb.listVocabularyForBook(db, bookId)).toHaveLength(0);
+  });
+
+  it('second insert for same book and same casing is a no-op', async () => {
+    expect(
+      await vocabDb.insertVocabulary(db, {
+        word: 'serendipity', definition: 'happy chance', book_id: bookId,
+      }),
+    ).toEqual({ inserted: true, id: expect.any(Number) });
+
+    await expect(
+      vocabDb.insertVocabulary(db, {
+        word: 'serendipity', definition: 'different definition', book_id: bookId,
+      }),
+    ).resolves.toEqual({ inserted: false });
+
+    const rows = await vocabDb.listVocabularyForBook(db, bookId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].definition).toBe('happy chance');
+  });
+
+  it('second insert for same book and different casing is a no-op', async () => {
+    await vocabDb.insertVocabulary(db, {
+      word: 'Serendipity', definition: 'happy chance', book_id: bookId,
+    });
+
+    await expect(
+      vocabDb.insertVocabulary(db, {
+        word: 'serendipity', definition: 'different definition', book_id: bookId,
+      }),
+    ).resolves.toEqual({ inserted: false });
+
+    const rows = await vocabDb.listVocabularyForBook(db, bookId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].word).toBe('Serendipity');
+  });
+
+  it('same word in a different book still inserts', async () => {
+    const otherId = await booksDb.insertBook(db, {
+      title: 'Other', author: null, file_path: '/q.pdf', file_type: 'pdf',
+    });
+
+    await expect(
+      vocabDb.insertVocabulary(db, {
+        word: 'serendipity', definition: 'happy chance', book_id: bookId,
+      }),
+    ).resolves.toEqual({ inserted: true, id: expect.any(Number) });
+
+    await expect(
+      vocabDb.insertVocabulary(db, {
+        word: 'serendipity', definition: 'same word, other book', book_id: otherId,
+      }),
+    ).resolves.toEqual({ inserted: true, id: expect.any(Number) });
+
+    expect(await vocabDb.listVocabularyForBook(db, bookId)).toHaveLength(1);
+    expect(await vocabDb.listVocabularyForBook(db, otherId)).toHaveLength(1);
   });
 });

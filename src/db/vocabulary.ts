@@ -8,6 +8,11 @@ export interface InsertVocabInput {
   book_id: number;
 }
 
+export interface InsertVocabularyResult {
+  inserted: boolean;
+  id?: number;
+}
+
 export async function listVocabularyForBook(
   db: SqlExecutor,
   bookId: number,
@@ -34,12 +39,18 @@ export async function listAllVocabulary(
 export async function insertVocabulary(
   db: SqlExecutor,
   input: InsertVocabInput,
-): Promise<number> {
+): Promise<InsertVocabularyResult> {
   const result = await db.execute(
-    `INSERT INTO vocabulary (word, definition, book_id) VALUES (?, ?, ?)`,
+    `INSERT INTO vocabulary (word, definition, book_id)
+     VALUES (?, ?, ?)
+     ON CONFLICT DO NOTHING`,
     [input.word, input.definition, input.book_id],
   );
-  return result.lastInsertId;
+  if (result.rowsAffected === 0) {
+    return { inserted: false };
+  }
+
+  return { inserted: true, id: result.lastInsertId };
 }
 
 export async function deleteVocabulary(

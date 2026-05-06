@@ -6,6 +6,7 @@ import {
   formatSensesForStorage,
   lookupWord,
   OfflineDictionaryError,
+  type DefinitionSense,
   type DefinitionResult,
 } from '../../dictionary/lookup';
 import { useAppStore } from '../../store';
@@ -19,11 +20,34 @@ export function dispatchOpenDictionary(word: string) {
 type ModalState =
   | { kind: 'idle' }
   | { kind: 'loading'; word: string }
-  | { kind: 'done'; word: string; result: DefinitionResult }
+  | { kind: 'done'; word: string; result: DefinitionResult; cached?: boolean }
   | { kind: 'closing' };
+
+function normalizeWord(word: string): string {
+  return word.trim().toLocaleLowerCase();
+}
+
+function parseStoredDefinition(definition: string): DefinitionSense[] {
+  const text = definition.trim();
+  if (!text) return [];
+
+  const pattern = /\(([^)]+)\)\s*([^()]+?)(?=\s+\([^)]+\)\s*|$)/g;
+  const senses: DefinitionSense[] = [];
+
+  for (const match of text.matchAll(pattern)) {
+    const pos = match[1]?.trim() ?? '';
+    const gloss = match[2]?.trim() ?? '';
+    if (!gloss) continue;
+    senses.push({ pos, gloss });
+  }
+
+  if (senses.length > 0) return senses;
+  return [{ pos: '', gloss: text }];
+}
 
 export function DictionaryModal() {
   const currentBookId = useAppStore((state) => state.currentBookId);
+  const currentBookVocab = useAppStore((state) => state.currentBookVocab);
   const insertVocab = useAppStore((state) => state.insertVocabForCurrentBook);
   const [state, setState] = useState<ModalState>({ kind: 'idle' });
 
@@ -33,6 +57,25 @@ export function DictionaryModal() {
     const handleOpen = (event: Event) => {
       const word = (event as CustomEvent<string>).detail;
       if (!currentBookId) return;
+      const normalizedWord = normalizeWord(word);
+      const existingEntry = currentBookVocab.find(
+        (entry) => normalizeWord(entry.word) === normalizedWord,
+      );
+
+      if (existingEntry) {
+        activeWord = word;
+        setState({
+          kind: 'done',
+          word: existingEntry.word,
+          cached: true,
+          result: {
+            word: existingEntry.word,
+            source: 'wordnet',
+            senses: parseStoredDefinition(existingEntry.definition),
+          },
+        });
+        return;
+      }
 
       activeWord = word;
       setState({ kind: 'loading', word });
@@ -71,7 +114,7 @@ export function DictionaryModal() {
     return () => {
       window.removeEventListener(OPEN_EVENT, handleOpen);
     };
-  }, [currentBookId, insertVocab]);
+  }, [currentBookId, currentBookVocab, insertVocab]);
 
   useEffect(() => {
     if (state.kind !== 'closing') return;
@@ -119,7 +162,7 @@ export function DictionaryModal() {
               ))}
             </ul>
           ) : null}
-          {state.kind === 'done' && state.result.source === 'wiktionary' ? (
+          {state.kind === 'done' && !state.cached && state.result.source === 'wiktionary' ? (
             <p className="mt-3 text-xs uppercase tracking-wide text-ink-muted">
               via Wiktionary
             </p>

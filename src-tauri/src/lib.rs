@@ -23,6 +23,12 @@ pub fn run() {
             sql: include_str!("../migrations/0002_phase2.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "vocabulary unique per book",
+            sql: include_str!("../migrations/0003_vocab_unique.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

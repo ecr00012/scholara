@@ -53,7 +53,7 @@ interface AppState {
   insertVocabForCurrentBook: (input: {
     word: string;
     definition: string;
-  }) => Promise<void>;
+  }) => Promise<vocabDb.InsertVocabularyResult>;
   deleteNote: (id: number) => Promise<void>;
   deleteVocabulary: (id: number) => Promise<void>;
   runMetadataExtractionPass: () => Promise<void>;
@@ -196,8 +196,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     const id = get().currentBookId;
     if (id === null) throw new Error('No current book');
     const db = await getDb();
-    await vocabDb.insertVocabulary(db, { ...input, book_id: id });
-    await get().reloadVocabForCurrentBook();
+    const result = await vocabDb.insertVocabulary(db, { ...input, book_id: id });
+    if (result.inserted) {
+      await get().reloadVocabForCurrentBook();
+    }
+    return result;
   },
 
   deleteNote: async (id) => {
