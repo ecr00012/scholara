@@ -12,6 +12,7 @@ const RENDER_SCALE = 1.5;
 const ROOT_MARGIN = '500px 0px';
 const POSITION_SAVE_DEBOUNCE_MS = 500;
 const OPEN_NOTE_EVENT = 'scholara:open-note';
+const GO_TO_SOURCE_EVENT = 'scholara:go-to-source';
 
 interface Props {
   book: Book;
@@ -114,23 +115,27 @@ export function PdfReader({ book, bytes }: Props) {
       const position = JSON.parse(book.current_position) as Position;
       if (position.type !== 'pdf') return;
 
-      const pageIndex = clamp(position.locator - 1, 0, pageMetrics.length - 1);
-      const pageEl = pageRefs.current[pageIndex];
-      const pageMetric = pageMetrics[pageIndex];
-      if (!pageEl || !pageMetric) return;
-
-      const absolutePageFraction = clamp(position.fraction, 0, 1) * pdf.numPages;
-      const localPageFraction = clamp(absolutePageFraction - pageIndex, 0, 1);
-      const pageOffset = pageEl.offsetTop;
-      const intraPageOffset = pageMetric.height * localPageFraction;
-      const maxScrollTop = Math.max(root.scrollHeight - root.clientHeight, 0);
-      const targetScrollTop = clamp(pageOffset + intraPageOffset, 0, maxScrollTop);
-
-      root.scrollTo({ top: targetScrollTop });
+      scrollToPdfPosition(root, pageRefs.current, pageMetrics, pdf.numPages, position);
     } catch {
       // Ignore malformed saved positions and fall back to the start of the book.
     }
   }, [book.current_position, pageMetrics, pdf]);
+
+  useEffect(() => {
+    const handleGoToSource = (event: Event) => {
+      const position = (event as CustomEvent<Position>).detail;
+      const root = containerRef.current;
+      if (!root || !pdf || pageMetrics.length === 0 || position.type !== 'pdf') {
+        return;
+      }
+
+      scrollToPdfPosition(root, pageRefs.current, pageMetrics, pdf.numPages, position);
+      void setBookCurrentPosition(book.id, position);
+    };
+
+    window.addEventListener(GO_TO_SOURCE_EVENT, handleGoToSource);
+    return () => window.removeEventListener(GO_TO_SOURCE_EVENT, handleGoToSource);
+  }, [book.id, pageMetrics, pdf, setBookCurrentPosition]);
 
   useEffect(() => {
     const root = containerRef.current;
@@ -534,4 +539,26 @@ async function captureSelection(
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+function scrollToPdfPosition(
+  root: HTMLElement,
+  pageElements: Array<HTMLDivElement | null>,
+  pageMetrics: PageMetric[],
+  pageCount: number,
+  position: Extract<Position, { type: 'pdf' }>,
+): void {
+  const pageIndex = clamp(position.locator - 1, 0, pageMetrics.length - 1);
+  const pageEl = pageElements[pageIndex];
+  const pageMetric = pageMetrics[pageIndex];
+  if (!pageEl || !pageMetric) return;
+
+  const absolutePageFraction = clamp(position.fraction, 0, 1) * pageCount;
+  const localPageFraction = clamp(absolutePageFraction - pageIndex, 0, 1);
+  const pageOffset = pageEl.offsetTop;
+  const intraPageOffset = pageMetric.height * localPageFraction;
+  const maxScrollTop = Math.max(root.scrollHeight - root.clientHeight, 0);
+  const targetScrollTop = clamp(pageOffset + intraPageOffset, 0, maxScrollTop);
+
+  root.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
 }

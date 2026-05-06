@@ -1,3 +1,4 @@
+import { AnimatePresence } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../../store';
 import { readBookBytes } from '../../ipc/files';
@@ -64,11 +65,13 @@ export function ReaderScreen() {
 
   return (
     <>
-      {book.display_mode === 'reader' ? (
-        <FullReaderDisplay book={book} bytes={bytes} />
-      ) : (
-        <AgentDisplay book={book} bytes={bytes} />
-      )}
+      <AnimatePresence mode="wait" initial={false}>
+        {book.display_mode === 'reader' ? (
+          <FullReaderDisplay key="reader" book={book} bytes={bytes} />
+        ) : (
+          <AgentDisplay key="agent" book={book} bytes={bytes} />
+        )}
+      </AnimatePresence>
       <SelectionToolbar book={book} />
       <NotePeek />
       <DictionaryModal />

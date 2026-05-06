@@ -49,3 +49,70 @@ export function isQuoteRange(parsed: unknown): parsed is QuoteRange {
       && 'start' in parsed
       && 'end' in parsed;
 }
+
+export function parsePositionOrRange(json: string): Position | QuoteRange | null {
+  try {
+    return JSON.parse(json) as Position | QuoteRange;
+  } catch {
+    return null;
+  }
+}
+
+export function getSourcePosition(value: Position | QuoteRange): Position {
+  return isQuoteRange(value) ? value.start : value;
+}
+
+export function getSourcePositionFromJson(json: string): Position | null {
+  const parsed = parsePositionOrRange(json);
+  return parsed ? getSourcePosition(parsed) : null;
+}
+
+export function formatPositionLabel(
+  json: string,
+  options: { epubLocations?: string | null } = {},
+): string {
+  const position = getSourcePositionFromJson(json);
+  if (!position) return '';
+
+  if (position.type === 'pdf') return position.label;
+
+  const page = estimateEpubPage(position.fraction, options.epubLocations);
+  if (!page) return position.label;
+  if (new RegExp(`\\bpage\\s+${page}\\b`, 'i').test(position.label)) {
+    return position.label;
+  }
+  return `${position.label} · Page ${page}`;
+}
+
+function estimateEpubPage(
+  fraction: number,
+  epubLocations?: string | null,
+): number | null {
+  if (!Number.isFinite(fraction)) return null;
+
+  const count = countEpubLocations(epubLocations);
+  if (!count) return null;
+
+  return Math.min(Math.max(Math.ceil(fraction * count), 1), count);
+}
+
+function countEpubLocations(epubLocations?: string | null): number | null {
+  if (!epubLocations) return null;
+
+  try {
+    const parsed = JSON.parse(epubLocations) as unknown;
+    if (Array.isArray(parsed)) return parsed.length;
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'locations' in parsed &&
+      Array.isArray((parsed as { locations?: unknown }).locations)
+    ) {
+      return (parsed as { locations: unknown[] }).locations.length;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}

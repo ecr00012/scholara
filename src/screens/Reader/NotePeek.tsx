@@ -1,13 +1,24 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import type { NoteRow } from '../../db/types';
+import {
+  formatPositionLabel,
+  getSourcePositionFromJson,
+  type Position,
+} from '../../lib/positionShape';
 import { useAppStore } from '../../store';
 
 const OPEN_NOTE_EVENT = 'scholara:open-note';
+const GO_TO_SOURCE_EVENT = 'scholara:go-to-source';
 
 export function NotePeek() {
+  const books = useAppStore((state) => state.books);
+  const currentBookId = useAppStore((state) => state.currentBookId);
   const notes = useAppStore((state) => state.currentBookNotes);
+  const book = useMemo(
+    () => books.find((candidate) => candidate.id === currentBookId) ?? null,
+    [books, currentBookId],
+  );
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const note = useMemo(
     () => notes.find((candidate) => candidate.id === selectedId) ?? null,
@@ -48,7 +59,9 @@ export function NotePeek() {
                 {note.note_text ? 'Linked note' : 'Highlight'}
               </p>
               <p className="mt-0.5 text-xs text-ink-muted">
-                {readNoteLabel(note)}
+                {formatPositionLabel(note.page_or_position, {
+                  epubLocations: book?.epub_locations,
+                })}
               </p>
             </div>
             <button
@@ -62,9 +75,22 @@ export function NotePeek() {
           </div>
 
           {note.quote_text ? (
-            <p className="rounded-2xl border border-accent-orange/30 bg-accent-orange/10 px-4 py-2 font-serif text-sm italic text-accent-orange">
+            <button
+              type="button"
+              className="block w-full rounded-2xl border border-accent-orange/30 bg-accent-orange/10 px-4 py-2 text-left font-serif text-sm italic text-accent-orange transition hover:bg-accent-orange/15 focus:outline-none focus:ring-2 focus:ring-amber-300"
+              onClick={() => {
+                const position = getSourcePositionFromJson(note.page_or_position);
+                if (!position) return;
+                window.dispatchEvent(
+                  new CustomEvent<Position>(GO_TO_SOURCE_EVENT, {
+                    detail: position,
+                  }),
+                );
+                setSelectedId(null);
+              }}
+            >
               &ldquo;{note.quote_text}&rdquo;
-            </p>
+            </button>
           ) : null}
 
           {note.note_text ? (
@@ -74,24 +100,4 @@ export function NotePeek() {
       ) : null}
     </AnimatePresence>
   );
-}
-
-function readNoteLabel(note: NoteRow): string {
-  try {
-    const parsed = JSON.parse(note.page_or_position) as
-      | { label?: string }
-      | { start?: { label?: string } };
-
-    if ('label' in parsed && parsed.label) {
-      return parsed.label;
-    }
-
-    if ('start' in parsed && parsed.start?.label) {
-      return parsed.start.label;
-    }
-  } catch {
-    return '';
-  }
-
-  return '';
 }

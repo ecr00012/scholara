@@ -5,6 +5,7 @@ import {
   deserializePosition,
   serializeQuoteRange,
   deserializeQuoteRange,
+  formatPositionLabel,
   isQuoteRange,
 } from '../../src/lib/positionShape';
 import type { Position, EpubQuoteRange, PdfQuoteRange } from '../../src/lib/positionShape';
@@ -51,5 +52,33 @@ describe('positionShape', () => {
     const single = { type: 'pdf', locator: 1, fraction: 0, label: 'Page 1' };
     expect(isQuoteRange(range)).toBe(true);
     expect(isQuoteRange(single)).toBe(false);
+  });
+
+  it('formats EPUB source labels with estimated page numbers', () => {
+    const p: Position = {
+      type: 'epub',
+      locator: 'cfiA',
+      fraction: 0.71,
+      label: 'Chapter 6',
+    };
+
+    expect(
+      formatPositionLabel(serializePosition(p), {
+        epubLocations: JSON.stringify(Array.from({ length: 100 }, (_, index) => index)),
+      }),
+    ).toBe('Chapter 6 · Page 71');
+  });
+
+  it('formats quote ranges from their source position', () => {
+    const r: EpubQuoteRange = {
+      start: { type: 'epub', locator: 'cfiA', fraction: 0.2, label: 'Chapter 2' },
+      end: { type: 'epub', locator: 'cfiB', fraction: 0.21, label: 'Chapter 2' },
+    };
+
+    expect(
+      formatPositionLabel(serializeQuoteRange(r), {
+        epubLocations: JSON.stringify(Array.from({ length: 50 }, (_, index) => index)),
+      }),
+    ).toBe('Chapter 2 · Page 10');
   });
 });

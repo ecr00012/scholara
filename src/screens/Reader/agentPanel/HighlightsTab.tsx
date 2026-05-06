@@ -7,12 +7,12 @@ interface Props {
   book: Book;
 }
 
-export function HighlightsTab({ book: _book }: Props) {
+export function HighlightsTab({ book }: Props) {
   const currentBookNotes = useAppStore((state) => state.currentBookNotes);
   const notes = useMemo(
     () => currentBookNotes.filter((note) => note.quote_text !== null),
     [currentBookNotes],
   );
 
-  return <NotesList emptyMessage="No highlights yet." notes={notes} />;
+  return <NotesList book={book} emptyMessage="No highlights yet." notes={notes} />;
 }

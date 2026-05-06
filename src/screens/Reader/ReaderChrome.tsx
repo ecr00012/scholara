@@ -36,7 +36,7 @@ export function ReaderChrome({ book, variant: _variant }: Props) {
         <button
           type="button"
           onClick={closeBook}
-          className="font-serif text-sm text-ink hover:underline"
+          className="font-serif text-sm text-ink-muted"
         >
           ← Library
         </button>

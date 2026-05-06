@@ -1,5 +1,6 @@
 import { Trash2 } from 'lucide-react';
 import type { Book, NoteRow } from '../../../db/types';
+import { formatPositionLabel } from '../../../lib/positionShape';
 import { useAppStore } from '../../../store';
 
 const OPEN_NOTE_EVENT = 'scholara:open-note';
@@ -9,6 +10,7 @@ interface Props {
 }
 
 interface NoteListProps {
+  book: Book;
   emptyMessage: string;
   notes: NoteRow[];
 }
@@ -16,10 +18,10 @@ interface NoteListProps {
 export function NotesTab({ book: _book }: Props) {
   const notes = useAppStore((state) => state.currentBookNotes);
 
-  return <NotesList emptyMessage="No notes yet." notes={notes} />;
+  return <NotesList book={_book} emptyMessage="No notes yet." notes={notes} />;
 }
 
-export function NotesList({ emptyMessage, notes }: NoteListProps) {
+export function NotesList({ book, emptyMessage, notes }: NoteListProps) {
   const deleteNote = useAppStore((state) => state.deleteNote);
 
   if (notes.length === 0) {
@@ -29,7 +31,9 @@ export function NotesList({ emptyMessage, notes }: NoteListProps) {
   return (
     <ul className="flex flex-col gap-3">
       {notes.map((note) => {
-        const label = readNoteLabel(note.page_or_position);
+        const label = formatPositionLabel(note.page_or_position, {
+          epubLocations: book.epub_locations,
+        });
 
         return (
           <li key={note.id} className="rounded-2xl border border-stone-200 bg-cream p-3">
@@ -71,24 +75,4 @@ export function NotesList({ emptyMessage, notes }: NoteListProps) {
 
 function openNote(noteId: number): void {
   window.dispatchEvent(new CustomEvent<number>(OPEN_NOTE_EVENT, { detail: noteId }));
-}
-
-function readNoteLabel(pageOrPosition: string): string {
-  try {
-    const parsed = JSON.parse(pageOrPosition) as
-      | { label?: string }
-      | { start?: { label?: string } };
-
-    if ('label' in parsed && parsed.label) {
-      return parsed.label;
-    }
-
-    if ('start' in parsed && parsed.start?.label) {
-      return parsed.start.label;
-    }
-  } catch {
-    return '';
-  }
-
-  return '';
 }

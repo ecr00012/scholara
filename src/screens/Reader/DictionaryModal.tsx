@@ -6,7 +6,7 @@ import {
   formatSensesForStorage,
   lookupWord,
   OfflineDictionaryError,
-  type DefinitionSense,
+  parseStoredDefinition,
   type DefinitionResult,
 } from '../../dictionary/lookup';
 import { useAppStore } from '../../store';
@@ -25,24 +25,6 @@ type ModalState =
 
 function normalizeWord(word: string): string {
   return word.trim().toLocaleLowerCase();
-}
-
-function parseStoredDefinition(definition: string): DefinitionSense[] {
-  const text = definition.trim();
-  if (!text) return [];
-
-  const pattern = /\(([^)]+)\)\s*([^()]+?)(?=\s+\([^)]+\)\s*|$)/g;
-  const senses: DefinitionSense[] = [];
-
-  for (const match of text.matchAll(pattern)) {
-    const pos = match[1]?.trim() ?? '';
-    const gloss = match[2]?.trim() ?? '';
-    if (!gloss) continue;
-    senses.push({ pos, gloss });
-  }
-
-  if (senses.length > 0) return senses;
-  return [{ pos: '', gloss: text }];
 }
 
 export function DictionaryModal() {
@@ -155,7 +137,9 @@ export function DictionaryModal() {
               {state.result.senses.map((sense, idx) => (
                 <li key={idx} className="text-base leading-7 text-ink/80">
                   {sense.pos ? (
-                    <span className="font-serif italic text-ink-muted">{sense.pos} · </span>
+                    <span className="font-serif italic text-accent-orange">
+                      {sense.pos} ·{' '}
+                    </span>
                   ) : null}
                   {sense.gloss}
                 </li>

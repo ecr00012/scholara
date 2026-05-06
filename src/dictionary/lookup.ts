@@ -114,3 +114,21 @@ export function formatSensesForStorage(senses: DefinitionSense[]): string {
     })
     .join(' ');
 }
+
+export function parseStoredDefinition(definition: string): DefinitionSense[] {
+  const text = definition.trim();
+  if (!text) return [];
+
+  const pattern = /\(([^)]+)\)\s*([^()]+?)(?=\s+\([^)]+\)\s*|$)/g;
+  const senses: DefinitionSense[] = [];
+
+  for (const match of text.matchAll(pattern)) {
+    const pos = match[1]?.trim() ?? '';
+    const gloss = match[2]?.trim() ?? '';
+    if (!gloss) continue;
+    senses.push({ pos, gloss });
+  }
+
+  if (senses.length > 0) return senses;
+  return [{ pos: '', gloss: text }];
+}

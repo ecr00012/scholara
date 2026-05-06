@@ -63,7 +63,7 @@ function TabsTrigger({
       aria-selected={isActive}
       data-state={isActive ? 'active' : 'inactive'}
       className={cn(
-        'rounded-xl px-3 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-amber-300',
+        'flex h-9 w-full items-center justify-center whitespace-nowrap rounded-xl px-2 text-center text-sm transition focus:outline-none focus:ring-2 focus:ring-amber-300',
         isActive
           ? 'bg-white text-ink shadow-sm'
           : 'text-ink-muted hover:bg-white/60 hover:text-ink',

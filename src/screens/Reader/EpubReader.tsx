@@ -12,13 +12,14 @@ import { useAppStore } from '../../store';
 import { applyEpubAnnotations } from './annotations/EpubAnnotations';
 
 const OPEN_NOTE_EVENT = 'scholara:open-note';
+const GO_TO_SOURCE_EVENT = 'scholara:go-to-source';
 
 // Choreography: phase 1 fades old text + blur out, the action runs while the
 // screen is blank, phase 2 fades new text + blur in, phase 3 lifts the blur.
 // Phase durations differ by trigger — slow for window resizes, snappy for
 // page flips. The CSS transitionDuration is set imperatively to match.
 const RESIZE_PHASE_MS = 200;
-const PAGE_PHASE_MS = 60;
+const PAGE_PHASE_MS = 70;
 const RESIZE_DEBOUNCE_MS = 150;
 
 interface Props {
@@ -138,6 +139,15 @@ export function EpubReader({ book, bytes }: Props) {
     };
 
     window.addEventListener('scholara:clear-selection', handleClearSelection);
+
+    const handleGoToSource = (event: Event) => {
+      const position = (event as CustomEvent<Position>).detail;
+      if (position.type !== 'epub') return;
+      void rendition.display(position.locator);
+      void setBookCurrentPosition(book.id, position);
+    };
+
+    window.addEventListener(GO_TO_SOURCE_EVENT, handleGoToSource);
 
     const handleRendered = (_section: unknown, view: { contents?: Contents }) => {
       wireContents(view.contents);
@@ -284,6 +294,7 @@ export function EpubReader({ book, bytes }: Props) {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', handleWindowResize);
       window.removeEventListener('scholara:clear-selection', handleClearSelection);
+      window.removeEventListener(GO_TO_SOURCE_EVENT, handleGoToSource);
       rendition.off('relocated', handleRelocated);
       rendition.off('selected', handleSelected);
       rendition.off('rendered', handleRendered);
