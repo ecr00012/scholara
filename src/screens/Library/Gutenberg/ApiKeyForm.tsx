@@ -86,7 +86,7 @@ export function ApiKeyForm({ variant, onSaved }: Props) {
         rel="noreferrer"
         className="text-xs text-accent-amber underline-offset-2 hover:underline"
       >
-        Get a key on RapidAPI →
+        Get a free key from RapidAPI →
       </a>
     </div>
   );
