@@ -55,6 +55,38 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       }
       return null as T;
     }
+    case 'diagnose_secret': {
+      const name = String(args.name ?? '');
+      const failures = getSecretFailures();
+      if (failures.get[name]) {
+        return {
+          service: 'scholara',
+          account: `${name}_api_key`,
+          diagnostic_account: `${name}_diagnostic_api_key`,
+          existing_entry: false,
+          status: 'real_load_failed',
+          error: failures.get[name],
+        } as T;
+      }
+      if (failures.set[name]) {
+        return {
+          service: 'scholara',
+          account: `${name}_api_key`,
+          diagnostic_account: `${name}_diagnostic_api_key`,
+          existing_entry: savedSecrets[name] !== undefined,
+          status: 'diagnostic_save_failed',
+          error: failures.set[name],
+        } as T;
+      }
+      return {
+        service: 'scholara',
+        account: `${name}_api_key`,
+        diagnostic_account: `${name}_diagnostic_api_key`,
+        existing_entry: savedSecrets[name] !== undefined,
+        status: 'ok',
+        error: null,
+      } as T;
+    }
     case 'download_gutenberg_epub': {
       const bookId = Number(args.bookId ?? 0);
       return {

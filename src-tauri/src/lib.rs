@@ -5,7 +5,7 @@ use commands::books::{
     reveal_in_file_manager, save_cover_bytes,
 };
 use commands::gutenberg::download_gutenberg_epub;
-use commands::secrets::{get_secret, set_secret};
+use commands::secrets::{diagnose_secret, get_secret, set_secret};
 use commands::wordnet::{lookup_wordnet, WordnetState};
 use tauri_plugin_sql::{Migration, MigrationKind};
 
@@ -56,6 +56,7 @@ pub fn run() {
             delete_book_files,
             get_secret,
             set_secret,
+            diagnose_secret,
             download_gutenberg_epub,
             lookup_wordnet,
         ])

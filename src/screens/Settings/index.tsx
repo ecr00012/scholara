@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { useAppStore } from '../../store';
 import { ApiKeyForm } from './ApiKeyForm';
 import { DataLocationPanel } from './DataLocationPanel';
+import { SecretDiagnosticPanel } from './SecretDiagnosticPanel';
 
 export function SettingsScreen() {
   const setView = useAppStore((s) => s.setView);
@@ -38,6 +39,12 @@ export function SettingsScreen() {
         helpHref="https://rapidapi.com/help-lQ_hVT8W5/api/project-gutenberg-free-books-api1"
         helpLabel="Get a key on RapidAPI →"
       />
+      {import.meta.env.DEV && (
+        <>
+          <hr className="border-stone-200" />
+          <SecretDiagnosticPanel />
+        </>
+      )}
       <hr className="border-stone-200" />
       <DataLocationPanel />
     </div>
