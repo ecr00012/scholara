@@ -12,6 +12,7 @@ import { GutenbergPanel } from './Gutenberg';
 import { ScrollStripPlaceholder } from './ScrollStripPlaceholder';
 import { EditMetadataModal } from './EditMetadataModal';
 import { DeleteBookDialog } from './DeleteBookDialog';
+import { Fireplace } from './Fireplace/Fireplace';
 
 export function LibraryScreen() {
   const books = useAppStore((s) => s.books);
@@ -72,22 +73,15 @@ export function LibraryScreen() {
       <main className="flex flex-col gap-6 overflow-y-auto px-12 py-8">
         <ApiKeyBanner />
         <Header />
-        <BookGrid
-          books={books}
-          onEdit={setEditing}
-          onDelete={setDeleting}
-          onAdded={setEditing}
-        />
+        <BookGrid books={books} onEdit={setEditing} onDelete={setDeleting} onAdded={setEditing} />
       </main>
       <aside className="flex flex-col gap-4 border-l border-stone-200 p-6">
         <GutenbergPanel />
-        <ScrollStripPlaceholder />
+        <div className="mt-auto h-40 w-full overflow-hidden rounded-2xl">
+          <Fireplace scale={0.4} />
+        </div>
       </aside>
-      <EditMetadataModal
-        book={editing}
-        open={editing !== null}
-        onClose={() => setEditing(null)}
-      />
+      <EditMetadataModal book={editing} open={editing !== null} onClose={() => setEditing(null)} />
       <DeleteBookDialog
         book={deleting}
         open={deleting !== null}

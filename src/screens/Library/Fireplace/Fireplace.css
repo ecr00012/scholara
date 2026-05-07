@@ -1,0 +1,102 @@
+.fireplace-widget {
+  --ash: #6b5d50;
+  --brick: #8a6a52;
+  --brick-dim: #5a4434;
+  --ember-1: #ff7a2a;
+  --ember-3: #ffd884;
+  --candle: #ffd884;
+
+  width: 100%;
+  height: 100%;
+  min-height: 160px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 16px;
+
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 65%, rgba(255, 140, 58, 0.18), transparent 70%),
+    radial-gradient(ellipse 85% 70% at 50% 65%, rgba(255, 77, 31, 0.08), transparent 75%),
+    #1a1410;
+}
+
+.fireplace-art {
+  position: relative;
+  font-size: var(--ascii-size);
+  line-height: 1;
+  transform-origin: center;
+}
+
+.fireplace-ascii {
+  margin: 0;
+  font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  font-size: var(--ascii-size);
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: pre;
+  user-select: none;
+  pointer-events: none;
+}
+
+.fireplace-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.fireplace-smoke {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  color: var(--ash);
+  opacity: 0.55;
+}
+
+.fireplace-structure {
+  color: var(--brick-dim);
+  animation: fireplace-pulse 5.4s ease-in-out infinite;
+}
+
+.fireplace-glow {
+  color: var(--brick);
+}
+
+.fireplace-logs {
+  color: #6b3a1c;
+}
+
+.fireplace-flame {
+  color: var(--ember-1);
+  text-shadow:
+    0 0 6px rgba(255, 140, 58, 0.7),
+    0 0 16px rgba(255, 77, 31, 0.45);
+}
+
+.fireplace-ember {
+  color: var(--ember-3);
+  text-shadow:
+    0 0 4px rgba(255, 216, 132, 0.9),
+    0 0 10px rgba(255, 140, 58, 0.6);
+}
+
+.fireplace-candle {
+  color: var(--candle);
+  text-shadow:
+    0 0 3px rgba(255, 216, 132, 0.9),
+    0 0 8px rgba(255, 180, 90, 0.5);
+}
+
+@keyframes fireplace-pulse {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+
+  45% {
+    opacity: 1;
+  }
+
+  70% {
+    opacity: 0.7;
+  }
+}
