@@ -46,8 +46,13 @@ export function PdfReader({ book, bytes }: Props) {
   const setBookCurrentPosition = useAppStore(
     (state) => state.setBookCurrentPosition,
   );
+  const clearReaderSupport = useAppStore((state) => state.clearReaderSupport);
 
   notesRef.current = notes;
+
+  useEffect(() => {
+    clearReaderSupport();
+  }, [clearReaderSupport]);
 
   useEffect(() => {
     initPdfWorker();

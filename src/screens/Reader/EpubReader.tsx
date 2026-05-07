@@ -9,12 +9,18 @@ import ePub, {
 } from 'epubjs';
 import { Button } from '@/components/ui/button';
 import type { Book } from '../../db/types';
+import {
+  buildEpubNavItems,
+  buildEpubSearchSections,
+  searchEpubSections,
+  type EpubSearchSection,
+} from '../../lib/epubReaderIndex';
 import type { EpubQuoteRange, Position } from '../../lib/positionShape';
 import { useAppStore } from '../../store';
 import { applyEpubAnnotations } from './annotations/EpubAnnotations';
+import { GO_TO_SOURCE_EVENT } from './readerSupport';
 
 const OPEN_NOTE_EVENT = 'scholara:open-note';
-const GO_TO_SOURCE_EVENT = 'scholara:go-to-source';
 
 // Resize still uses a blur mask to hide epub.js iframe reflow flicker.
 // Page turns use a quieter text-only fade.
@@ -41,12 +47,23 @@ export function EpubReader({ book, bytes }: Props) {
   const blurOverlayRef = useRef<HTMLDivElement | null>(null);
   const renditionRef = useRef<Rendition | null>(null);
   const pageChangeRef = useRef<((direction: PageDirection) => void) | null>(null);
+  const searchSectionsRef = useRef<EpubSearchSection[]>([]);
+  const searchDebounceRef = useRef<number | null>(null);
 
   const notes = useAppStore((state) => state.currentBookNotes);
+  const readerSearchQuery = useAppStore((state) => state.readerSearchQuery);
   const setBookCurrentPosition = useAppStore(
     (state) => state.setBookCurrentPosition,
   );
   const setBookEpubLocations = useAppStore((state) => state.setBookEpubLocations);
+  const setReaderNavItems = useAppStore((state) => state.setReaderNavItems);
+  const setReaderSearchResults = useAppStore(
+    (state) => state.setReaderSearchResults,
+  );
+  const setReaderSearchStatus = useAppStore(
+    (state) => state.setReaderSearchStatus,
+  );
+  const clearReaderSupport = useAppStore((state) => state.clearReaderSupport);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -67,6 +84,7 @@ export function EpubReader({ book, bytes }: Props) {
     let resizeDebounce: number | null = null;
     let phaseTimer: number | null = null;
     let sequenceActive = false;
+    let cancelled = false;
     const wiredContents = new WeakSet<Contents>();
     const activeContents = new Set<Contents>();
     const detachContentListeners: Array<() => void> = [];
@@ -281,15 +299,37 @@ export function EpubReader({ book, bytes }: Props) {
 
     void (async () => {
       await epubBook.ready;
+      if (cancelled) return;
 
       if (book.epub_locations) {
         epubBook.locations.load(book.epub_locations);
+      } else {
+        await epubBook.locations.generate(1024);
+        if (cancelled) return;
+        const locations = epubBook.locations.save();
+        await setBookEpubLocations(book.id, locations);
+        if (cancelled) return;
+      }
+
+      const navItems = buildEpubNavItems(epubBook);
+      if (cancelled) return;
+      setReaderNavItems(navItems);
+      setReaderSearchStatus('indexing');
+      searchSectionsRef.current = await buildEpubSearchSections(epubBook, navItems);
+      if (cancelled) return;
+
+      const currentQuery = useAppStore.getState().readerSearchQuery.trim();
+      if (currentQuery) {
+        setReaderSearchResults(
+          searchEpubSections(searchSectionsRef.current, currentQuery),
+          searchSectionsRef.current.length > 0 ? 'ready' : 'empty',
+        );
         return;
       }
 
-      await epubBook.locations.generate(1024);
-      const locations = epubBook.locations.save();
-      await setBookEpubLocations(book.id, locations);
+      setReaderSearchStatus(
+        searchSectionsRef.current.length > 0 ? 'ready' : 'empty',
+      );
     })();
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -299,6 +339,7 @@ export function EpubReader({ book, bytes }: Props) {
     window.addEventListener('keydown', onKeyDown);
 
     return () => {
+      cancelled = true;
       if (relocateDebounce !== null) {
         window.clearTimeout(relocateDebounce);
       }
@@ -317,6 +358,12 @@ export function EpubReader({ book, bytes }: Props) {
       rendition.off('selected', handleSelected);
       rendition.off('rendered', handleRendered);
       detachContentListeners.forEach((detach) => detach());
+      clearReaderSupport();
+      searchSectionsRef.current = [];
+      if (searchDebounceRef.current !== null) {
+        window.clearTimeout(searchDebounceRef.current);
+        searchDebounceRef.current = null;
+      }
       rendition.destroy();
       epubBook.destroy();
       renditionRef.current = null;
@@ -326,9 +373,42 @@ export function EpubReader({ book, bytes }: Props) {
     book.epub_locations,
     book.id,
     bytes,
+    clearReaderSupport,
     setBookCurrentPosition,
     setBookEpubLocations,
+    setReaderNavItems,
+    setReaderSearchResults,
+    setReaderSearchStatus,
   ]);
+
+  useEffect(() => {
+    if (searchDebounceRef.current !== null) {
+      window.clearTimeout(searchDebounceRef.current);
+    }
+
+    const query = readerSearchQuery.trim();
+    if (!query) {
+      setReaderSearchResults(
+        [],
+        searchSectionsRef.current.length > 0 ? 'ready' : 'idle',
+      );
+      return;
+    }
+
+    searchDebounceRef.current = window.setTimeout(() => {
+      const results = searchEpubSections(searchSectionsRef.current, query);
+      setReaderSearchResults(
+        results,
+        searchSectionsRef.current.length > 0 ? 'ready' : 'empty',
+      );
+    }, 180);
+
+    return () => {
+      if (searchDebounceRef.current !== null) {
+        window.clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, [readerSearchQuery, setReaderSearchResults]);
 
   useEffect(() => {
     const rendition = renditionRef.current;
@@ -458,6 +538,7 @@ function dispatchEpubSelection(
   } catch {
     return;
   }
+  if (!resolvedCfiRange) return;
 
   const range = makeQuoteRange(epubBook, resolvedCfiRange);
   if (!range) return;
