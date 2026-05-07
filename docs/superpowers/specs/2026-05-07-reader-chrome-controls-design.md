@@ -75,9 +75,9 @@ Visible only in Agent Display, and only when the Agent panel tab is `Notes` or `
 ```text
 ┌────────────────────────────────────┐
 │ [AI Chat][Notes][Highlights][Dict] │
-│                       ☰ All Notes  │
-├────────────────────────────────────┤
 │                                    │
+├────────────────────────────────────┤
+│ ☰ All Notes                        │
 │ note / highlight list              │
 └────────────────────────────────────┘
 ```
@@ -100,6 +100,7 @@ Behavior:
 
 - The word `Filter` does not appear in the UI.
 - The three-line icon sits directly to the left of the active scope label.
+- The scope control sits in its own row below the tab header, left-aligned with the note/highlight list.
 - Default scope is `All Notes`, displayed as `☰ All Notes`.
 - A chapter scope is displayed as `☰ Chapter Twenty-One` or the chapter label supplied by the EPUB index.
 - Selecting a chapter filters Notes and Highlights to the same reading bucket.
