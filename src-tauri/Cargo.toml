@@ -24,7 +24,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-sql    = { version = "2", features = ["sqlite"] }
 tauri-plugin-dialog = "2"
-keyring             = "3"
+keyring = { version = "3", features = ["apple-native", "windows-native"] }
+
 uuid                = { version = "1", features = ["v4"] }
 rusqlite            = { version = "0.32", features = ["bundled"] }
 reqwest             = { version = "0.12", features = ["rustls-tls", "stream"], default-features = false }
