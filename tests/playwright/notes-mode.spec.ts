@@ -104,3 +104,32 @@ test('notes mode toggles orange and saves a quote-backed note', async ({ page })
       },
     ]);
 });
+
+test('EPUB notes scope control starts at All Notes and omits Filter wording', async ({
+  page,
+}) => {
+  await page.evaluate(async () => {
+    await (window as Window & {
+      __appTestHooks: {
+        seedBook(input: {
+          title: string;
+          file_path: string;
+          file_type: 'epub';
+        }): Promise<{ id: number }>;
+      };
+    }).__appTestHooks.seedBook({
+      title: 'Scoped Notes EPUB',
+      file_path: '/mock/sample.epub',
+      file_type: 'epub',
+    });
+  });
+
+  await page.getByRole('button', { name: 'Open Scoped Notes EPUB' }).click();
+  await expect(page.locator('iframe').first()).toBeVisible({ timeout: 10_000 });
+
+  await page.getByRole('tab', { name: 'Notes' }).click();
+  await expect(page.getByRole('button', { name: 'Choose notes scope' })).toContainText(
+    'All Notes',
+  );
+  await expect(page.getByText('Filter')).toHaveCount(0);
+});

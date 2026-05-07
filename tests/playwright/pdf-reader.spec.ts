@@ -82,3 +82,40 @@ test('End updates the persisted PDF position', async ({ page }) => {
   expect(parsed?.locator).toBeGreaterThan(1);
   expect(parsed?.fraction).toBeGreaterThan(0);
 });
+
+test('PDF reader disables EPUB-only reader chrome controls', async ({ page }) => {
+  await page.evaluate(async () => {
+    await (window as Window & {
+      __appTestHooks: {
+        seedBook(input: {
+          title: string;
+          file_path: string;
+          file_type: 'pdf';
+        }): Promise<unknown>;
+      };
+    }).__appTestHooks.seedBook({
+      title: 'PDF Book',
+      file_path: '/mock/sample.pdf',
+      file_type: 'pdf',
+    });
+  });
+
+  await page.getByRole('button', { name: 'Open PDF Book' }).click();
+  await expect(page.locator('canvas').first()).toBeVisible({ timeout: 10_000 });
+
+  await expect(
+    page.getByRole('button', {
+      name: 'Chapter index is available for EPUB books',
+    }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', {
+      name: 'Text preferences are available for EPUB books',
+    }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', {
+      name: 'Book search is available for EPUB books',
+    }),
+  ).toBeDisabled();
+});
