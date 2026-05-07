@@ -68,8 +68,8 @@ export function LibraryScreen() {
       </main>
       <aside className="flex flex-col gap-4 border-l border-stone-200 p-6">
         <GutenbergPanel />
-        <div className="mt-auto h-40 w-full overflow-hidden rounded-2xl">
-          <Fireplace scale={0.46} />
+        <div className="mt-auto h-60 w-full overflow-hidden rounded-2xl">
+          <Fireplace scale={0.65} />
         </div>
       </aside>
       <EditMetadataModal book={editing} open={editing !== null} onClose={() => setEditing(null)} />
