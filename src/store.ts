@@ -14,6 +14,7 @@ interface AppState {
   view: AppView;
   books: Book[];
   apiKey: string | null;
+  gutenbergApiKey: string | null;
   apiKeyBannerDismissed: boolean;
   currentBookId: number | null;
   currentBookNotes: NoteRow[];
@@ -35,6 +36,8 @@ interface AppState {
   deleteBook: (id: number) => Promise<void>;
   loadApiKey: () => Promise<void>;
   saveApiKey: (key: string) => Promise<void>;
+  loadGutenbergApiKey: () => Promise<void>;
+  saveGutenbergApiKey: (key: string) => Promise<void>;
   dismissApiKeyBanner: () => void;
   openBook: (id: number) => Promise<void>;
   closeBook: () => void;
@@ -63,6 +66,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   view: 'library',
   books: [],
   apiKey: null,
+  gutenbergApiKey: null,
   apiKeyBannerDismissed: false,
   currentBookId: null,
   currentBookNotes: [],
@@ -107,13 +111,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   loadApiKey: async () => {
-    const apiKey = await secretsIpc.getApiKey();
+    const apiKey = await secretsIpc.getSecret('anthropic');
     set({ apiKey });
   },
 
   saveApiKey: async (key) => {
-    await secretsIpc.setApiKey(key);
+    await secretsIpc.setSecret('anthropic', key);
     set({ apiKey: key === '' ? null : key });
+  },
+
+  loadGutenbergApiKey: async () => {
+    const gutenbergApiKey = await secretsIpc.getSecret('gutenberg');
+    set({ gutenbergApiKey });
+  },
+
+  saveGutenbergApiKey: async (key) => {
+    await secretsIpc.setSecret('gutenberg', key);
+    set({ gutenbergApiKey: key === '' ? null : key });
   },
 
   dismissApiKeyBanner: () => set({ apiKeyBannerDismissed: true }),

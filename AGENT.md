@@ -16,6 +16,7 @@ Scholara is an offline-first desktop reading and study app — Google NotebookLM
 - **Streaming:** Every LLM response streams token-by-token.
 - **Auth:** No accounts, no authentication, no online backend.
 - **API key:** User-provided Anthropic API key stored locally (SQLite or Tauri secure store). Never hardcode.
+- **Secrets:** All keychain-backed secrets go through `getSecret(name)` / `setSecret(name)`. Service is `"scholara"`; account is the `name` argument.
 - **Platform:** Cross-platform (macOS, Windows, Linux). All IPC and file paths must be cross-platform.
 - **No SSR.**
 
@@ -123,5 +124,4 @@ Core reading, notes, and vocabulary work fully offline. LLM features attempted w
 ## Tech Decisions Left Open
 
 - PDF and EPUB rendering library — choose the most mature, actively maintained option that integrates cleanly with React + Tauri. Document the choice with a brief comment in code.
-
 

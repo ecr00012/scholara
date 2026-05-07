@@ -22,11 +22,10 @@ interface SeedNoteInput {
 interface AppTestHooks {
   seedBook(input: SeedBookInput): Promise<Book>;
   seedNote(input: SeedNoteInput): Promise<number>;
+  clearGutenbergCache(): Promise<void>;
   getCurrentPosition(): string | null;
   listNotes(bookId: number): Promise<Awaited<ReturnType<typeof notesDb.listNotesForBook>>>;
-  listVocabulary(bookId?: number): Promise<
-    Awaited<ReturnType<typeof vocabDb.listAllVocabulary>>
-  >;
+  listVocabulary(bookId?: number): Promise<Awaited<ReturnType<typeof vocabDb.listAllVocabulary>>>;
 }
 
 export function installTestHooks(): void {
@@ -59,6 +58,13 @@ export function installTestHooks(): void {
         await useAppStore.getState().reloadNotesForCurrentBook();
       }
       return id;
+    },
+
+    async clearGutenbergCache() {
+      const db = await getDb();
+      await db.execute(
+        'UPDATE gutenberg_panel_state SET last_fetched_at = NULL, payload_json = NULL WHERE id = 1',
+      );
     },
 
     getCurrentPosition() {

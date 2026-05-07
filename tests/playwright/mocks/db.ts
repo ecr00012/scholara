@@ -34,10 +34,18 @@ interface VocabRow {
   created_at: string;
 }
 
+interface GutenbergPanelStateRow {
+  id: 1;
+  cursor_offset: number;
+  last_fetched_at: number | null;
+  payload_json: string | null;
+}
+
 interface MockState {
   books: BookRow[];
   notes: NoteRow[];
   vocabulary: VocabRow[];
+  gutenbergPanelState: GutenbergPanelStateRow;
   nextIds: {
     books: number;
     notes: number;
@@ -58,6 +66,29 @@ export default class DatabaseMock {
 
     if (normalized.startsWith('pragma foreign_keys = on')) {
       return { lastInsertId: 0, rowsAffected: 0 };
+    }
+
+    if (normalized.startsWith('update gutenberg_panel_state')) {
+      if (normalized.includes('set cursor_offset = ?, last_fetched_at = ?, payload_json = ?')) {
+        const [cursorOffset, lastFetchedAt, payloadJson] = params as [
+          number,
+          number | null,
+          string | null,
+        ];
+        state.gutenbergPanelState = {
+          id: 1,
+          cursor_offset: cursorOffset,
+          last_fetched_at: lastFetchedAt,
+          payload_json: payloadJson,
+        };
+        return { lastInsertId: 0, rowsAffected: 1 };
+      }
+
+      if (normalized.includes('set last_fetched_at = null, payload_json = null')) {
+        state.gutenbergPanelState.last_fetched_at = null;
+        state.gutenbergPanelState.payload_json = null;
+        return { lastInsertId: 0, rowsAffected: 1 };
+      }
     }
 
     if (normalized.startsWith('insert into books')) {
@@ -89,7 +120,7 @@ export default class DatabaseMock {
       return { lastInsertId: id, rowsAffected: 1 };
     }
 
-    if (normalized.startsWith('update books set title = ?, author = ?, metadata_source = \'user\'')) {
+    if (normalized.startsWith("update books set title = ?, author = ?, metadata_source = 'user'")) {
       const [title, author, id] = params as [string, string | null, number];
       const book = requireBook(id);
       book.title = title;
@@ -119,7 +150,7 @@ export default class DatabaseMock {
       return { lastInsertId: 0, rowsAffected: 1 };
     }
 
-    if (normalized.startsWith('update books set last_opened = datetime(\'now\') where id = ?')) {
+    if (normalized.startsWith("update books set last_opened = datetime('now') where id = ?")) {
       const [id] = params as [number];
       requireBook(id).last_opened = nextTimestamp();
       return { lastInsertId: 0, rowsAffected: 1 };
@@ -131,7 +162,7 @@ export default class DatabaseMock {
       return { lastInsertId: 0, rowsAffected: 1 };
     }
 
-    if (normalized.startsWith('update books set metadata_source = \'extracted\'')) {
+    if (normalized.startsWith("update books set metadata_source = 'extracted'")) {
       const [id] = params.slice(-1) as [number];
       const book = requireBook(id);
       let index = 0;
@@ -204,18 +235,23 @@ export default class DatabaseMock {
   async select<T>(sql: string, params: unknown[] = []): Promise<T[]> {
     const normalized = normalizeSql(sql);
 
-    if (
-      normalized.includes('from books') &&
-      normalized.includes('order by datetime(created_at) desc, id desc')
-    ) {
-      return [...state.books]
-        .sort(compareCreatedDesc)
-        .map(cloneRow) as T[];
+    if (normalized.includes('from gutenberg_panel_state')) {
+      if (normalized.includes('count(*)')) {
+        return [{ count: 1 }] as T[];
+      }
+      return [cloneRow(state.gutenbergPanelState)] as T[];
     }
 
     if (
       normalized.includes('from books') &&
-      normalized.includes('where metadata_source = \'filename\'')
+      normalized.includes('order by datetime(created_at) desc, id desc')
+    ) {
+      return [...state.books].sort(compareCreatedDesc).map(cloneRow) as T[];
+    }
+
+    if (
+      normalized.includes('from books') &&
+      normalized.includes("where metadata_source = 'filename'")
     ) {
       return state.books
         .filter((book) => book.metadata_source === 'filename')
@@ -223,10 +259,7 @@ export default class DatabaseMock {
         .map(cloneRow) as T[];
     }
 
-    if (
-      normalized.includes('from notes') &&
-      normalized.includes('where book_id = ?')
-    ) {
+    if (normalized.includes('from notes') && normalized.includes('where book_id = ?')) {
       const [bookId] = params as [number];
       return state.notes
         .filter((note) => note.book_id === bookId)
@@ -234,10 +267,7 @@ export default class DatabaseMock {
         .map(cloneRow) as T[];
     }
 
-    if (
-      normalized.includes('from vocabulary') &&
-      normalized.includes('where book_id = ?')
-    ) {
+    if (normalized.includes('from vocabulary') && normalized.includes('where book_id = ?')) {
       const [bookId] = params as [number];
       return state.vocabulary
         .filter((row) => row.book_id === bookId)
@@ -249,9 +279,7 @@ export default class DatabaseMock {
       normalized.includes('from vocabulary') &&
       normalized.includes('order by datetime(created_at) desc, id desc')
     ) {
-      return [...state.vocabulary]
-        .sort(compareCreatedDesc)
-        .map(cloneRow) as T[];
+      return [...state.vocabulary].sort(compareCreatedDesc).map(cloneRow) as T[];
     }
 
     throw new Error(`Unhandled mock SQL select: ${sql}`);
@@ -268,6 +296,7 @@ function getState(): MockState {
       books: [],
       notes: [],
       vocabulary: [],
+      gutenbergPanelState: initialGutenbergPanelState(),
       nextIds: {
         books: 1,
         notes: 1,
@@ -276,8 +305,18 @@ function getState(): MockState {
       clock: 0,
     };
   }
+  target.__SCHOLARA_DB_MOCK__.gutenbergPanelState ??= initialGutenbergPanelState();
 
   return target.__SCHOLARA_DB_MOCK__;
+}
+
+function initialGutenbergPanelState(): GutenbergPanelStateRow {
+  return {
+    id: 1,
+    cursor_offset: 0,
+    last_fetched_at: null,
+    payload_json: null,
+  };
 }
 
 function requireBook(id: number): BookRow {

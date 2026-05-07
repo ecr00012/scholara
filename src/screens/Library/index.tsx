@@ -8,7 +8,7 @@ import type { Book } from '../../db/types';
 import { Header } from './Header';
 import { ApiKeyBanner } from './ApiKeyBanner';
 import { BookGrid } from './BookGrid';
-import { BrainPlaceholder } from './BrainPlaceholder';
+import { GutenbergPanel } from './Gutenberg';
 import { ScrollStripPlaceholder } from './ScrollStripPlaceholder';
 import { EditMetadataModal } from './EditMetadataModal';
 import { DeleteBookDialog } from './DeleteBookDialog';
@@ -80,7 +80,7 @@ export function LibraryScreen() {
         />
       </main>
       <aside className="flex flex-col gap-4 border-l border-stone-200 p-6">
-        <BrainPlaceholder />
+        <GutenbergPanel />
         <ScrollStripPlaceholder />
       </aside>
       <EditMetadataModal

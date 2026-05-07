@@ -10,12 +10,9 @@ interface DragDropPayload {
 }
 
 const dragDropListeners = new Set<ListenCallback<DragDropPayload>>();
-let savedApiKey: string | null = null;
+const savedSecrets = getSecrets();
 
-export async function invoke<T>(
-  cmd: string,
-  args: Record<string, unknown> = {},
-): Promise<T> {
+export async function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
   const fixtures = getFixtures();
 
   switch (cmd) {
@@ -36,11 +33,27 @@ export async function invoke<T>(
       return '/mock/app-data' as T;
     case 'reveal_in_file_manager':
       return null as T;
-    case 'get_api_key':
-      return savedApiKey as T;
-    case 'set_api_key':
-      savedApiKey = typeof args.key === 'string' && args.key !== '' ? args.key : null;
+    case 'get_secret': {
+      const name = String(args.name ?? '');
+      return (savedSecrets[name] ?? null) as T;
+    }
+    case 'set_secret': {
+      const name = String(args.name ?? '');
+      const value = typeof args.value === 'string' ? args.value : '';
+      if (value === '') {
+        delete savedSecrets[name];
+      } else {
+        savedSecrets[name] = value;
+      }
       return null as T;
+    }
+    case 'download_gutenberg_epub': {
+      const bookId = Number(args.bookId ?? 0);
+      return {
+        stored_path: `/mock/books/gutenberg-${bookId}.epub`,
+        file_type: 'epub',
+      } as T;
+    }
     default:
       throw new Error(`Unhandled mock IPC command: ${cmd}`);
   }
@@ -84,9 +97,22 @@ function getFixtures(): MockFixtureMap {
   );
 }
 
-function bytesToNumberArray(
-  value: ArrayBuffer | number[] | Uint8Array | undefined,
-): number[] {
+function getSecrets(): Record<string, string> {
+  const target = globalThis as typeof globalThis & {
+    __SCHOLARA_SECRETS__?: Record<string, string>;
+    __SCHOLARA_GUTENBERG_KEY__?: string;
+  };
+
+  if (!target.__SCHOLARA_SECRETS__) {
+    target.__SCHOLARA_SECRETS__ = {};
+  }
+  if (typeof target.__SCHOLARA_GUTENBERG_KEY__ === 'string') {
+    target.__SCHOLARA_SECRETS__.gutenberg = target.__SCHOLARA_GUTENBERG_KEY__;
+  }
+  return target.__SCHOLARA_SECRETS__;
+}
+
+function bytesToNumberArray(value: ArrayBuffer | number[] | Uint8Array | undefined): number[] {
   if (!value) return [];
   if (Array.isArray(value)) return value;
   if (value instanceof Uint8Array) return Array.from(value);

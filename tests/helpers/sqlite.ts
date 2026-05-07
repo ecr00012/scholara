@@ -4,9 +4,12 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { SqlExecutor } from '../../src/db/types';
 
-const MIGRATIONS = ['0001_init.sql', '0002_phase2.sql', '0003_vocab_unique.sql'].map((f) =>
-  path.resolve(__dirname, '../../src-tauri/migrations', f),
-);
+const MIGRATIONS = [
+  '0001_init.sql',
+  '0002_phase2.sql',
+  '0003_vocab_unique.sql',
+  '0004_gutenberg.sql',
+].map((f) => path.resolve(__dirname, '../../src-tauri/migrations', f));
 
 /**
  * Returns a SqlExecutor backed by an in-memory better-sqlite3 instance with

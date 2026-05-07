@@ -4,7 +4,8 @@ use commands::books::{
     app_data_dir_path, copy_uploaded_file, delete_book_files, read_book_bytes,
     reveal_in_file_manager, save_cover_bytes,
 };
-use commands::secrets::{get_api_key, set_api_key};
+use commands::gutenberg::download_gutenberg_epub;
+use commands::secrets::{get_secret, set_secret};
 use commands::wordnet::{lookup_wordnet, WordnetState};
 use tauri_plugin_sql::{Migration, MigrationKind};
 
@@ -29,6 +30,12 @@ pub fn run() {
             sql: include_str!("../migrations/0003_vocab_unique.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 4,
+            description: "phase 4a: gutenberg panel state",
+            sql: include_str!("../migrations/0004_gutenberg.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
@@ -47,8 +54,9 @@ pub fn run() {
             read_book_bytes,
             save_cover_bytes,
             delete_book_files,
-            get_api_key,
-            set_api_key,
+            get_secret,
+            set_secret,
+            download_gutenberg_epub,
             lookup_wordnet,
         ])
         .run(tauri::generate_context!())

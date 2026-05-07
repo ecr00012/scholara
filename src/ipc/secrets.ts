@@ -1,9 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
 
-export async function getApiKey(): Promise<string | null> {
-  return invoke<string | null>('get_api_key');
+export async function getSecret(name: string): Promise<string | null> {
+  return invoke<string | null>('get_secret', { name });
 }
 
-export async function setApiKey(key: string): Promise<void> {
-  await invoke('set_api_key', { key });
+export async function setSecret(name: string, value: string): Promise<void> {
+  await invoke('set_secret', { name, value });
 }
