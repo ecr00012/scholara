@@ -51,7 +51,11 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       if (value === '') {
         delete savedSecrets[name];
       } else {
-        savedSecrets[name] = value;
+        if (failures.confirm[name]) {
+          delete savedSecrets[name];
+        } else {
+          savedSecrets[name] = value;
+        }
       }
       return null as T;
     }
@@ -155,17 +159,20 @@ function getSecrets(): Record<string, string> {
 function getSecretFailures(): {
   get: Record<string, string | undefined>;
   set: Record<string, string | undefined>;
+  confirm: Record<string, string | undefined>;
 } {
   const target = globalThis as typeof globalThis & {
     __SCHOLARA_SECRET_FAILURES__?: {
       get?: Record<string, string | undefined>;
       set?: Record<string, string | undefined>;
+      confirm?: Record<string, string | undefined>;
     };
   };
 
   return {
     get: target.__SCHOLARA_SECRET_FAILURES__?.get ?? {},
     set: target.__SCHOLARA_SECRET_FAILURES__?.set ?? {},
+    confirm: target.__SCHOLARA_SECRET_FAILURES__?.confirm ?? {},
   };
 }
 

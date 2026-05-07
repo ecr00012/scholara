@@ -58,7 +58,20 @@ pub fn set_secret(name: String, value: String) -> Result<(), String> {
     } else {
         e.set_password(&value).map_err(|err| {
             format!("Could not save secret name={name} service={SERVICE} account={account}: {err}")
-        })
+        })?;
+
+        match e.get_password() {
+            Ok(saved) if saved == value => Ok(()),
+            Ok(_) => Err(format!(
+                "Could not confirm saved secret name={name} service={SERVICE} account={account}: saved value did not match"
+            )),
+            Err(KeyringError::NoEntry) => Err(format!(
+                "Could not confirm saved secret name={name} service={SERVICE} account={account}: entry was missing after save"
+            )),
+            Err(err) => Err(format!(
+                "Could not confirm saved secret name={name} service={SERVICE} account={account}: {err}"
+            )),
+        }
     }
 }
 

@@ -69,6 +69,7 @@ async function preloadSecretFailures(
   failures: {
     get?: Record<string, string>;
     set?: Record<string, string>;
+    confirm?: Record<string, string>;
   },
 ) {
   await page.addInitScript((preloaded) => {
@@ -315,5 +316,28 @@ test.describe('Gutenberg panel', () => {
         'Could not load your Project Gutenberg API key from the system keychain. mock keychain read failed',
       ),
     ).toBeVisible();
+  });
+
+  test('panel shows a persistence error when the Gutenberg key is missing after save', async ({
+    page,
+  }) => {
+    await preloadSecrets(page, {});
+    await preloadSecretFailures(page, {
+      confirm: { gutenberg: 'drop saved value before confirmation' },
+    });
+    await page.goto('/');
+    await page.waitForFunction(() => '__appTestHooks' in window);
+
+    await page.locator('input[type="password"]').first().fill('fake-rapidapi-key');
+    await page.getByRole('button', { name: 'Save' }).first().click();
+
+    await expect(
+      page.getByText(
+        'Could not save your Project Gutenberg API key to the system keychain. The keychain entry was missing immediately after save.',
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Open Pride and Prejudice' }),
+    ).toBeHidden();
   });
 });
