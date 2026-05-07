@@ -29,17 +29,39 @@ npm run lint           # lint
 ```
 
 ## Development Conventions
+
 When a user requests new features: If large, involves a complex/complicated implementation, or more than one new feature, separate the work into smaller tasks implement using subagent-driven development.
 
 Act as main orchestrator and reviewer. You must have your own understanding of the relevant files and expected final state.
 Require subagents to identify the functionality that causes current behavior and then present a very concise implementation plan for your review.
 
+Codex MUST pause before implementation and state that this requires subagent-driven development.
+
+Codex should then ask for explicit approval to use subagents if the current environment requires user permission for delegation.
+
+Required sequence:
+
+1. Main agent reads relevant files and forms its own understanding.
+2. Main agent decomposes the work into small, independent tasks.
+3. Subagents inspect assigned areas and return:
+   - current behavior/root cause,
+   - concise implementation plan,
+   - files likely affected.
+4. Main agent reviews the plans.
+5. Only after approval, orchestrator orders subagents to begin implementation.
+6. Main agent reviews and approves results.
+
 ## Debugging Rules
+
 - When tasked with fixing, recognizing, or finding a bug, you MUST present the issue, consider the root cause of the bug symptom, and present the issue + plan.
 - Only after a plan is approved can you move on to implementing fixes.
+- When a request includes both bug fixes and feature work, the subagent gate runs first.
+  The debugging issue/root-cause/plan requirement is satisfied through the main agent’s reviewed plan after subagents report back.
 
 ## Version Control
-- Always commit when: 
+
+- Always commit when:
+
 * bug fix complete
 * significant plan/spec written
 * new feature implemented
@@ -59,6 +81,7 @@ Tables initialized on first launch:
 ### Screen 1 — Library (Home)
 
 Apple Libraries–inspired grid of book tiles. Key layout details:
+
 - **Top-right:** placeholder `div` for the deferred WebGL brain animation —
 - **Right panel (~20%):** circularly scrolling vocabulary/notes/quotes strip (recency-ordered, looping). Clicking opens a Global Dictionary & Notes modal with a Dictionary tab (all books) and a Notes & Quotes tab (per book).
 - **Add Book:** Tauri `dialog` plugin file picker → copy file to app data dir via IPC → write to `books` table.
@@ -70,6 +93,7 @@ Apple Libraries–inspired grid of book tiles. Key layout details:
 **Full Reader Display** — full-screen reader. A hovering circle (logo) at bottom-center expands on click into a full-width frosted-glass (`backdrop-filter: blur`) text input. Streaming LLM response appears as an overlay in the top 30% of the screen and fades on click.
 
 Both modes share:
+
 - **Orange quill icon** → Notes Mode: selected text appends as a quote; a text input appears for the note body. Notes and quotes are independent (valid: quote only, note only, quote+note).
 - **Annotations:** orange subscript count for notes at a position; thin orange underline + orange subscript on final word for saved quotes.
 - **Word selection** → "Add to Dictionary" → top-of-screen modal with LLM-streamed definition → tap to fade/dismiss → saved to `vocabulary` table.
@@ -79,6 +103,7 @@ Both modes share:
 Built with LangChain (TypeScript) + `claude-sonnet-4-20250514`, streaming enabled.
 
 Three tools:
+
 1. **RAG over read content** — passages up to user's current position.
 2. **RAG over full text** — entire book; only after spoiler evaluation clears it.
 3. **Web search** — LangChain web search tool; fallback when text can't answer the question.
@@ -93,7 +118,7 @@ Accessible from Library. Allows user to enter/save their Anthropic API key and v
 
 ### Offline Behavior
 
-Core reading, notes, and vocabulary work fully offline. LLM features attempted while offline show a non-blocking toast: *"Connect to the internet to use AI features."*
+Core reading, notes, and vocabulary work fully offline. LLM features attempted while offline show a non-blocking toast: _"Connect to the internet to use AI features."_
 
 ## Deferred Features (Out of Scope)
 
@@ -103,5 +128,3 @@ Core reading, notes, and vocabulary work fully offline. LLM features attempted w
 ## Tech Decisions Left Open
 
 - PDF and EPUB rendering library — choose the most mature, actively maintained option that integrates cleanly with React + Tauri. Document the choice with a brief comment in code.
-
-

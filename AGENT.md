@@ -95,7 +95,7 @@ Both modes share:
 
 ### AI Agent Logic
 
-Built with LangChain (TypeScript) + `claude-sonnet-4-20250514`, streaming enabled.
+Built with LangChain (TypeScript) + claude haiku, streaming enabled.
 (switch to haiku for implementation)
 
 Three tools:
