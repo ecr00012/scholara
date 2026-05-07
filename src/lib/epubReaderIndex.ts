@@ -26,40 +26,92 @@ export interface EpubSearchSection {
 }
 
 export function buildEpubNavItems(epubBook: EpubBook): ReaderNavItem[] {
-  const spineItems = getSpineItems(epubBook);
-  const navItems = spineItems
-    .filter((item) => item.linear !== 'no')
-    .map((item, index) => {
-      const href = item.href ?? '';
-      const label =
-        index === 0
-          ? 'Cover'
-          : findNavLabel(epubBook.navigation.toc, href) ??
-            readableSpineLabel(item, index);
-      const position = makeHrefPosition(epubBook, href, label, index);
+  const flat = flattenToc(epubBook.navigation.toc);
+
+  if (flat.length > 0) {
+    const total = flat.length;
+    return flat.map((entry, index) => {
+      const fraction = total > 1 ? index / (total - 1) : 0;
+      const isCover = index === 0 && /^cover$/i.test(entry.label.trim());
 
       return {
-        id: `${index}:${href || item.idref || label}`,
-        label,
-        kind: index === 0 ? ('cover' as const) : ('chapter' as const),
-        progress: position.fraction,
-        position,
+        id: `toc:${index}:${entry.href}`,
+        label: entry.label,
+        kind: isCover ? ('cover' as const) : ('chapter' as const),
+        level: entry.level,
+        progress: fraction,
+        position: {
+          type: 'epub',
+          locator: entry.href,
+          fraction,
+          label: entry.label,
+        },
       };
     });
-
-  if (navItems.length === 0) {
-    return [
-      {
-        id: 'cover:start',
-        label: 'Cover',
-        kind: 'cover',
-        progress: 0,
-        position: { type: 'epub', locator: '', fraction: 0, label: 'Cover' },
-      },
-    ];
   }
 
-  return navItems;
+  // Fallback: EPUB has no TOC. Walk the spine and synthesize labels.
+  const spineNavItems = buildSpineNavItems(epubBook);
+  if (spineNavItems.length > 0) return spineNavItems;
+
+  return [
+    {
+      id: 'cover:start',
+      label: 'Cover',
+      kind: 'cover',
+      progress: 0,
+      position: { type: 'epub', locator: '', fraction: 0, label: 'Cover' },
+    },
+  ];
+}
+
+export interface FlatTocEntry {
+  href: string;
+  label: string;
+  level: number;
+}
+
+export function flattenEpubToc(
+  toc: NavItem[] | undefined,
+): FlatTocEntry[] {
+  return flattenToc(toc);
+}
+
+function flattenToc(
+  items: NavItem[] | undefined,
+  level = 0,
+  out: FlatTocEntry[] = [],
+): FlatTocEntry[] {
+  if (!items) return out;
+  for (const item of items) {
+    if (item.href) {
+      out.push({ href: item.href, label: item.label, level });
+    }
+    if (item.subitems?.length) {
+      flattenToc(item.subitems, level + 1, out);
+    }
+  }
+  return out;
+}
+
+function buildSpineNavItems(epubBook: EpubBook): ReaderNavItem[] {
+  const spineItems = getSpineItems(epubBook).filter(
+    (item) => item.linear !== 'no',
+  );
+
+  return spineItems.map((item, index) => {
+    const href = item.href ?? '';
+    const label = index === 0 ? 'Cover' : readableSpineLabel(item, index);
+    const position = makeHrefPosition(epubBook, href, label, index);
+
+    return {
+      id: `${index}:${href || item.idref || label}`,
+      label,
+      kind: index === 0 ? ('cover' as const) : ('chapter' as const),
+      progress: position.fraction,
+      position,
+    };
+  });
 }
 
 export async function buildEpubSearchSections(
@@ -181,43 +233,6 @@ function readableSpineLabel(item: SpineItemLike, index: number): string {
   }
 
   return `Chapter ${index + 1}`;
-}
-
-function findNavLabel(items: NavItem[], href: string): string | null {
-  const target = stripFragment(href);
-  const exact = findInToc(items, (item) => stripFragment(item.href) === target);
-  if (exact) return exact;
-
-  const targetBasename = basename(target);
-  return findInToc(
-    items,
-    (item) => basename(stripFragment(item.href)) === targetBasename,
-  );
-}
-
-function findInToc(
-  items: NavItem[],
-  match: (item: NavItem) => boolean,
-): string | null {
-  for (const item of items) {
-    if (match(item)) return item.label;
-    if (item.subitems?.length) {
-      const child = findInToc(item.subitems, match);
-      if (child) return child;
-    }
-  }
-
-  return null;
-}
-
-function stripFragment(href: string): string {
-  const hashIdx = href.indexOf('#');
-  return hashIdx === -1 ? href : href.slice(0, hashIdx);
-}
-
-function basename(path: string): string {
-  const slash = path.lastIndexOf('/');
-  return slash === -1 ? path : path.slice(slash + 1);
 }
 
 function makeSnippet(text: string, index: number, queryLength: number): string {

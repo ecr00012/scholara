@@ -57,9 +57,9 @@ export function ReaderSearchPopover({ disabled }: Props) {
       {open && !disabled ? (
         <div
           ref={panelRef}
-          className="absolute right-0 top-10 z-40 w-96 rounded-2xl border border-white/40 bg-white/55 p-3 shadow-xl backdrop-blur-md"
+          className="absolute right-0 top-10 z-40 w-96 rounded-2xl border border-stone-200 bg-cream p-3 shadow-xl"
         >
-          <div className="flex h-11 items-center rounded-full border border-white/40 bg-white/50 px-4">
+          <div className="flex h-11 items-center rounded-full border border-stone-200 bg-white px-4">
             <Search className="mr-2 h-4 w-4 text-ink-muted" />
             <input
               ref={inputRef}
@@ -75,7 +75,7 @@ export function ReaderSearchPopover({ disabled }: Props) {
             />
           </div>
           {query.trim() ? (
-            <div className="mt-2 max-h-72 overflow-y-auto rounded-xl border border-white/40 bg-cream/80">
+            <div className="mt-2 max-h-72 overflow-y-auto rounded-xl border border-stone-200 bg-cream">
               {status === 'indexing' ? (
                 <p className="px-3 py-3 text-sm text-ink-muted">
                   Indexing...
@@ -87,7 +87,7 @@ export function ReaderSearchPopover({ disabled }: Props) {
                   <button
                     key={result.id}
                     type="button"
-                    className="block w-full border-b border-stone-200 px-3 py-2 text-left last:border-b-0 hover:bg-white/70"
+                    className="block w-full border-b border-stone-200 px-3 py-2 text-left last:border-b-0 hover:bg-white"
                     onClick={() => {
                       dispatchReaderNavigation(result.position);
                       setOpen(false);

@@ -4,7 +4,6 @@ import ePub, {
   EpubCFI,
   type Book as EpubBook,
   type Contents,
-  type NavItem,
   type Rendition,
 } from 'epubjs';
 import { Button } from '@/components/ui/button';
@@ -12,6 +11,7 @@ import type { Book } from '../../db/types';
 import {
   buildEpubNavItems,
   buildEpubSearchSections,
+  flattenEpubToc,
   searchEpubSections,
   type EpubSearchSection,
 } from '../../lib/epubReaderIndex';
@@ -42,6 +42,25 @@ interface SelectionDetail {
   rect?: { x: number; y: number };
 }
 
+interface TocAnchorEntry {
+  href: string;
+  label: string;
+  level: number;
+  fileBase: string;
+  fragment: string;
+}
+
+interface SectionAnchor {
+  cfi: string;
+  label: string;
+}
+
+type EpubSection = {
+  href?: string;
+  cfiBase?: string;
+  index?: number;
+};
+
 export function EpubReader({ book, bytes }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const blurOverlayRef = useRef<HTMLDivElement | null>(null);
@@ -49,6 +68,8 @@ export function EpubReader({ book, bytes }: Props) {
   const pageChangeRef = useRef<((direction: PageDirection) => void) | null>(null);
   const searchSectionsRef = useRef<EpubSearchSection[]>([]);
   const searchDebounceRef = useRef<number | null>(null);
+  const tocAnchorsRef = useRef<TocAnchorEntry[]>([]);
+  const sectionAnchorsRef = useRef<Map<string, SectionAnchor[]>>(new Map());
 
   const notes = useAppStore((state) => state.currentBookNotes);
   const readerSearchQuery = useAppStore((state) => state.readerSearchQuery);
@@ -92,6 +113,7 @@ export function EpubReader({ book, bytes }: Props) {
     const wiredContents = new WeakSet<Contents>();
     const activeContents = new Set<Contents>();
     const detachContentListeners: Array<() => void> = [];
+    const renderedSections: Array<{ contents: Contents; section: EpubSection }> = [];
 
     const handleRelocated = (location: { start?: { cfi?: string } }) => {
       const cfi = location.start?.cfi;
@@ -102,13 +124,62 @@ export function EpubReader({ book, bytes }: Props) {
       }
 
       relocateDebounce = window.setTimeout(() => {
-        const position = makePosition(epubBook, cfi);
+        const position = makePosition(
+          epubBook,
+          cfi,
+          sectionAnchorsRef.current,
+          tocAnchorsRef.current,
+        );
         void setBookCurrentPosition(book.id, position);
       }, 500);
     };
 
     const handleSelected = (cfiRange: string, contents: Contents) => {
-      dispatchEpubSelection(epubBook, contents, cfiRange);
+      dispatchEpubSelection(
+        epubBook,
+        contents,
+        sectionAnchorsRef.current,
+        tocAnchorsRef.current,
+        cfiRange,
+      );
+    };
+
+    const indexSectionAnchors = (
+      contents: Contents,
+      section: EpubSection,
+    ): void => {
+      if (!section.href || !section.cfiBase) return;
+      const fileBase = basename(section.href);
+      const matching = tocAnchorsRef.current.filter(
+        (entry) => entry.fileBase === fileBase,
+      );
+      if (matching.length === 0) return;
+
+      const indexed: SectionAnchor[] = [];
+      for (const entry of matching) {
+        try {
+          if (!entry.fragment) {
+            const node = contents.document.body;
+            if (!node) continue;
+            const cfi = new EpubCFI(node, section.cfiBase).toString();
+            indexed.push({ cfi, label: entry.label });
+            continue;
+          }
+          const el =
+            contents.document.getElementById(entry.fragment) ??
+            contents.document.querySelector(`[name="${CSS.escape(entry.fragment)}"]`);
+          if (!el) continue;
+          const cfi = new EpubCFI(el as Node, section.cfiBase).toString();
+          indexed.push({ cfi, label: entry.label });
+        } catch {
+          // Skip anchors we can't resolve.
+        }
+      }
+
+      if (indexed.length === 0) return;
+      const helper = new EpubCFI();
+      indexed.sort((a, b) => helper.compare(a.cfi, b.cfi));
+      sectionAnchorsRef.current.set(section.href, indexed);
     };
 
     const wireContents = (contents?: Contents) => {
@@ -118,7 +189,12 @@ export function EpubReader({ book, bytes }: Props) {
 
       const dispatchFromSelection = () => {
         window.setTimeout(() => {
-          dispatchEpubSelection(epubBook, contents);
+          dispatchEpubSelection(
+            epubBook,
+            contents,
+            sectionAnchorsRef.current,
+            tocAnchorsRef.current,
+          );
         }, 0);
       };
 
@@ -126,7 +202,12 @@ export function EpubReader({ book, bytes }: Props) {
         const text = contents.window.getSelection()?.toString().trim() ?? '';
         if (!text) return;
         event.preventDefault();
-        dispatchEpubSelection(epubBook, contents);
+        dispatchEpubSelection(
+          epubBook,
+          contents,
+          sectionAnchorsRef.current,
+          tocAnchorsRef.current,
+        );
       };
 
       // Iframe events do not propagate to the parent window, so the
@@ -181,8 +262,17 @@ export function EpubReader({ book, bytes }: Props) {
 
     window.addEventListener(GO_TO_SOURCE_EVENT, handleGoToSource);
 
-    const handleRendered = (_section: unknown, view: { contents?: Contents }) => {
+    const handleRendered = (
+      section: EpubSection | undefined,
+      view: { contents?: Contents },
+    ) => {
       wireContents(view.contents);
+      if (section && view.contents) {
+        renderedSections.push({ contents: view.contents, section });
+        if (tocAnchorsRef.current.length > 0) {
+          indexSectionAnchors(view.contents, section);
+        }
+      }
     };
 
     rendition.on('relocated', handleRelocated);
@@ -313,6 +403,20 @@ export function EpubReader({ book, bytes }: Props) {
         const locations = epubBook.locations.save();
         await setBookEpubLocations(book.id, locations);
         if (cancelled) return;
+      }
+
+      tocAnchorsRef.current = flattenEpubToc(epubBook.navigation.toc).map(
+        (entry) => ({
+          ...entry,
+          fileBase: basename(stripFragment(entry.href)),
+          fragment: getFragment(entry.href),
+        }),
+      );
+
+      // Drain sections that rendered before the TOC was ready (the very
+      // first `rendered` event typically fires before `epubBook.ready`).
+      for (const { contents, section } of renderedSections) {
+        indexSectionAnchors(contents, section);
       }
 
       const navItems = buildEpubNavItems(epubBook);
@@ -555,6 +659,8 @@ function readInitialLocator(currentPosition: string | null): string | undefined 
 function makeQuoteRange(
   epubBook: EpubBook,
   cfiRange: string,
+  sectionAnchors: Map<string, SectionAnchor[]>,
+  tocAnchors: TocAnchorEntry[],
 ): EpubQuoteRange | null {
   try {
     const startCfi = new EpubCFI(cfiRange);
@@ -564,8 +670,8 @@ function makeQuoteRange(
     endCfi.collapse(false);
 
     return {
-      start: makePosition(epubBook, startCfi.toString()),
-      end: makePosition(epubBook, endCfi.toString()),
+      start: makePosition(epubBook, startCfi.toString(), sectionAnchors, tocAnchors),
+      end: makePosition(epubBook, endCfi.toString(), sectionAnchors, tocAnchors),
       cfiRange,
     };
   } catch {
@@ -576,6 +682,8 @@ function makeQuoteRange(
 function dispatchEpubSelection(
   epubBook: EpubBook,
   contents: Contents,
+  sectionAnchors: Map<string, SectionAnchor[]>,
+  tocAnchors: TocAnchorEntry[],
   cfiRange?: string,
 ): void {
   const selection = contents.window.getSelection();
@@ -590,7 +698,7 @@ function dispatchEpubSelection(
   }
   if (!resolvedCfiRange) return;
 
-  const range = makeQuoteRange(epubBook, resolvedCfiRange);
+  const range = makeQuoteRange(epubBook, resolvedCfiRange, sectionAnchors, tocAnchors);
   if (!range) return;
 
   window.dispatchEvent(
@@ -625,28 +733,59 @@ function getSelectionAnchorRect(
   };
 }
 
-function makePosition(epubBook: EpubBook, cfi: string): Extract<Position, { type: 'epub' }> {
+function makePosition(
+  epubBook: EpubBook,
+  cfi: string,
+  sectionAnchors: Map<string, SectionAnchor[]>,
+  tocAnchors: TocAnchorEntry[],
+): Extract<Position, { type: 'epub' }> {
   const fraction = epubBook.locations.percentageFromCfi(cfi);
 
   return {
     type: 'epub',
     locator: cfi,
     fraction: Number.isFinite(fraction) ? fraction : 0,
-    label: getChapterLabel(epubBook, cfi),
+    label: getChapterLabel(epubBook, cfi, sectionAnchors, tocAnchors),
   };
 }
 
-function getChapterLabel(epubBook: EpubBook, cfi: string): string {
+function getChapterLabel(
+  epubBook: EpubBook,
+  cfi: string,
+  sectionAnchors: Map<string, SectionAnchor[]>,
+  tocAnchors: TocAnchorEntry[],
+): string {
   try {
     const section = epubBook.spine.get(cfi);
     if (!section) return 'Chapter';
-    const tocMatch = section.href
-      ? findNavLabel(epubBook.navigation.toc, section.href)
-      : null;
-    if (tocMatch) return tocMatch;
-    // No TOC hit — fall back to the spine position rather than `idref`,
-    // which is an OPF manifest slug (often literally "id_…") that leaks
-    // build-time identifiers into the reader header.
+
+    // Preferred path: anchors for this section have been indexed at render
+    // time. Pick the latest TOC anchor whose CFI does not exceed `cfi`,
+    // giving anchor-precise chapter labels even when many TOC chapters
+    // live inside the same spine file (e.g. Project Gutenberg EPUBs).
+    const anchors = section.href ? sectionAnchors.get(section.href) : null;
+    if (anchors && anchors.length > 0) {
+      const helper = new EpubCFI();
+      let best: SectionAnchor | null = null;
+      for (const anchor of anchors) {
+        if (helper.compare(anchor.cfi, cfi) <= 0) best = anchor;
+        else break;
+      }
+      if (best) return best.label;
+      return anchors[0].label;
+    }
+
+    // Fallback: section not yet indexed (e.g. note taken before render).
+    // Use the first TOC entry pointing at this file.
+    if (section.href) {
+      const fileBase = basename(section.href);
+      const first = tocAnchors.find((entry) => entry.fileBase === fileBase);
+      if (first) return first.label;
+    }
+
+    // Last resort — spine index. We deliberately avoid `idref`, which is
+    // an OPF manifest slug (often literally "id_…") that leaks build-time
+    // identifiers into the reader header.
     const index = (section as { index?: number }).index;
     return typeof index === 'number' ? `Chapter ${index + 1}` : 'Chapter';
   } catch {
@@ -654,40 +793,14 @@ function getChapterLabel(epubBook: EpubBook, cfi: string): string {
   }
 }
 
-function findNavLabel(items: NavItem[], href: string): string | null {
-  // TOC entries frequently carry a fragment (Text/ch1.xhtml#start) while
-  // spine sections expose a bare path (Text/ch1.xhtml), so strict equality
-  // never matches. Compare with fragments stripped, then fall back to a
-  // basename match for the case where TOC/spine use different relative
-  // roots (OEBPS/Text/ch1.xhtml vs Text/ch1.xhtml).
-  const target = stripFragment(href);
-  const exact = findInToc(items, (item) => stripFragment(item.href) === target);
-  if (exact) return exact;
-
-  const targetBasename = basename(target);
-  return findInToc(
-    items,
-    (item) => basename(stripFragment(item.href)) === targetBasename,
-  );
-}
-
-function findInToc(
-  items: NavItem[],
-  match: (item: NavItem) => boolean,
-): string | null {
-  for (const item of items) {
-    if (match(item)) return item.label;
-    if (item.subitems?.length) {
-      const childMatch = findInToc(item.subitems, match);
-      if (childMatch) return childMatch;
-    }
-  }
-  return null;
-}
-
 function stripFragment(href: string): string {
   const hashIdx = href.indexOf('#');
   return hashIdx === -1 ? href : href.slice(0, hashIdx);
+}
+
+function getFragment(href: string): string {
+  const hashIdx = href.indexOf('#');
+  return hashIdx === -1 ? '' : href.slice(hashIdx + 1);
 }
 
 function basename(path: string): string {

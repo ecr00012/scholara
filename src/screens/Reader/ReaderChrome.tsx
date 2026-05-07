@@ -37,7 +37,7 @@ export function ReaderChrome({ book, variant: _variant }: Props) {
   const epubControlsDisabled = book.file_type !== 'epub';
 
   return (
-    <div className="grid h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center border-b border-stone-200 bg-cream/80 px-4 backdrop-blur">
+    <div className="relative z-30 grid h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center border-b border-stone-200 bg-cream/80 px-4 backdrop-blur">
       <div className="flex min-w-0 items-center gap-2">
         <button
           type="button"
