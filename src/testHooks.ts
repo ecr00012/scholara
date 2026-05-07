@@ -2,8 +2,10 @@ import { getDb } from './db/client';
 import * as booksDb from './db/books';
 import * as notesDb from './db/notes';
 import * as vocabDb from './db/vocabulary';
+import * as gutenbergPanelDb from './db/gutenbergPanel';
 import { useAppStore } from './store';
 import type { Book, FileType } from './db/types';
+import type { GutenbergBook } from './lib/gutenbergApi';
 
 interface SeedBookInput {
   title: string;
@@ -23,6 +25,11 @@ interface AppTestHooks {
   seedBook(input: SeedBookInput): Promise<Book>;
   seedNote(input: SeedNoteInput): Promise<number>;
   clearGutenbergCache(): Promise<void>;
+  seedGutenbergCache(input: {
+    cursor: number;
+    lastFetchedAt: number | null;
+    payload: GutenbergBook[] | null;
+  }): Promise<void>;
   getCurrentPosition(): string | null;
   listNotes(bookId: number): Promise<Awaited<ReturnType<typeof notesDb.listNotesForBook>>>;
   listVocabulary(bookId?: number): Promise<Awaited<ReturnType<typeof vocabDb.listAllVocabulary>>>;
@@ -65,6 +72,11 @@ export function installTestHooks(): void {
       await db.execute(
         'UPDATE gutenberg_panel_state SET last_fetched_at = NULL, payload_json = NULL WHERE id = 1',
       );
+    },
+
+    async seedGutenbergCache(input) {
+      const db = await getDb();
+      await gutenbergPanelDb.setCachedFetch(db, input);
     },
 
     getCurrentPosition() {

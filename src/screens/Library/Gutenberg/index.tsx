@@ -35,20 +35,25 @@ export function GutenbergPanel() {
         );
         return;
       }
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        setState({ kind: 'offline' });
-        return;
-      }
 
       const db = await getDb();
       const cache = await getCachedFetch(db);
+      const hasCachedPayload = Boolean(cache.payload && cache.payload.length > 0);
 
       if (
-        cache.payload &&
-        cache.payload.length > 0 &&
+        hasCachedPayload &&
         isFresh(cache.lastFetchedAt, Date.now())
       ) {
-        setState({ kind: 'ready', books: cache.payload });
+        setState({ kind: 'ready', books: cache.payload! });
+        return;
+      }
+
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        setState(
+          hasCachedPayload
+            ? { kind: 'ready', books: cache.payload! }
+            : { kind: 'offline' },
+        );
         return;
       }
 
@@ -69,8 +74,8 @@ export function GutenbergPanel() {
         setState({ kind: 'invalid-key' });
         return;
       }
-      if (cache.payload && cache.payload.length > 0) {
-        setState({ kind: 'ready', books: cache.payload });
+      if (hasCachedPayload) {
+        setState({ kind: 'ready', books: cache.payload! });
         return;
       }
       setState({

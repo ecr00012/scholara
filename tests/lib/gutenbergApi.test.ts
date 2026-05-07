@@ -104,12 +104,12 @@ describe('lib/gutenbergApi', () => {
     expect(result).toEqual({ kind: 'api-error', status: 500 });
   });
 
-  it('verifyKey returns offline when fetch rejects with TypeError', async () => {
+  it('verifyKey returns api-error when fetch rejects while online', async () => {
     globalThis.fetch = vi.fn(async () => {
       throw new TypeError('Failed to fetch');
     }) as unknown as typeof fetch;
     const result = await verifyKey('any-key');
-    expect(result.kind).toBe('offline');
+    expect(result).toEqual({ kind: 'api-error', status: 0 });
   });
 
   it('verifyKey returns offline when navigator.onLine is false', async () => {
@@ -133,10 +133,14 @@ describe('lib/gutenbergApi', () => {
 
     const [url, init] = spy.mock.calls[0];
     expect(String(url)).toBe(
-      'https://gutenbergapi.com/books?ordering=-download_count&page_size=4&offset=8',
+      'https://project-gutenberg-free-books-api1.p.rapidapi.com/books?ordering=-download_count&page_size=4&offset=8',
     );
     const headers = new Headers((init as RequestInit).headers);
-    expect(headers.get('X-RapidAPI-Key')).toBe('my-key');
+    expect(headers.get('x-rapidapi-key')).toBe('my-key');
+    expect(headers.get('x-rapidapi-host')).toBe(
+      'project-gutenberg-free-books-api1.p.rapidapi.com',
+    );
+    expect(headers.get('Content-Type')).toBe('application/json');
   });
 
   it('fetchBooks returns the books array on success', async () => {

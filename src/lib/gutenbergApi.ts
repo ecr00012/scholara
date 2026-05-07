@@ -27,7 +27,8 @@ export type FetchResult =
   | { kind: 'api-error'; status: number }
   | { kind: 'offline' };
 
-const BASE_URL = 'https://gutenbergapi.com';
+const RAPIDAPI_HOST = 'project-gutenberg-free-books-api1.p.rapidapi.com';
+const BASE_URL = `https://${RAPIDAPI_HOST}`;
 
 function isOffline(): boolean {
   const nav =
@@ -39,16 +40,22 @@ function isOffline(): boolean {
 
 async function callApi(url: string, key: string): Promise<FetchResult> {
   if (isOffline()) return { kind: 'offline' };
-  if (typeof globalThis.fetch !== 'function') return { kind: 'offline' };
+  if (typeof globalThis.fetch !== 'function') {
+    return { kind: 'api-error', status: 0 };
+  }
 
   let resp: Response;
   try {
     resp = await globalThis.fetch(url, {
       method: 'GET',
-      headers: { 'X-RapidAPI-Key': key },
+      headers: {
+        'x-rapidapi-key': key,
+        'x-rapidapi-host': RAPIDAPI_HOST,
+        'Content-Type': 'application/json',
+      },
     });
   } catch {
-    return { kind: 'offline' };
+    return { kind: 'api-error', status: 0 };
   }
 
   if (resp.status === 401 || resp.status === 403) {

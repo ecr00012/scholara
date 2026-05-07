@@ -70,6 +70,40 @@ async function waitForPanelReady(page: Page) {
   });
 }
 
+async function preloadGutenbergCache(
+  page: Page,
+  input: {
+    cursor: number;
+    lastFetchedAt: number | null;
+    payload: typeof FAKE_BOOKS_RESPONSE.results | null;
+  },
+) {
+  await page.addInitScript((cache) => {
+    (
+      globalThis as typeof globalThis & {
+        __SCHOLARA_DB_MOCK__?: unknown;
+      }
+    ).__SCHOLARA_DB_MOCK__ = {
+      books: [],
+      notes: [],
+      vocabulary: [],
+      gutenbergPanelState: {
+        id: 1,
+        cursor_offset: cache.cursor,
+        last_fetched_at: cache.lastFetchedAt,
+        payload_json:
+          cache.payload === null ? null : JSON.stringify(cache.payload),
+      },
+      nextIds: {
+        books: 1,
+        notes: 1,
+        vocabulary: 1,
+      },
+      clock: 0,
+    };
+  }, input);
+}
+
 test.describe('Gutenberg panel', () => {
   test.beforeEach(async ({ page }) => {
     await page.route('https://example.invalid/**', async (route) => {
@@ -80,23 +114,26 @@ test.describe('Gutenberg panel', () => {
       });
     });
 
-    await page.route('https://gutenbergapi.com/**', async (route, request) => {
-      const url = new URL(request.url());
-      if (url.searchParams.get('page_size') === '1') {
+    await page.route(
+      'https://project-gutenberg-free-books-api1.p.rapidapi.com/**',
+      async (route, request) => {
+        const url = new URL(request.url());
+        if (url.searchParams.get('page_size') === '1') {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ results: [FAKE_BOOKS_RESPONSE.results[0]] }),
+          });
+          return;
+        }
+
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ results: [FAKE_BOOKS_RESPONSE.results[0]] }),
+          body: JSON.stringify(FAKE_BOOKS_RESPONSE),
         });
-        return;
-      }
-
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(FAKE_BOOKS_RESPONSE),
-      });
-    });
+      },
+    );
   });
 
   test('panel shows inline form when no key is saved', async ({ page }) => {
@@ -180,5 +217,48 @@ test.describe('Gutenberg panel', () => {
     await expect(
       page.getByText('Connect to the internet to access Project Gutenberg.'),
     ).toBeVisible({ timeout: 5000 });
+  });
+
+  test('panel renders fresh cached books when navigator reports offline', async ({ page }) => {
+    await preloadSecrets(page, { gutenberg: 'fake-rapidapi-key' });
+    await preloadGutenbergCache(page, {
+      cursor: 4,
+      lastFetchedAt: Date.now(),
+      payload: FAKE_BOOKS_RESPONSE.results,
+    });
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'onLine', {
+        configurable: true,
+        get: () => false,
+      });
+    });
+
+    await page.goto('/');
+    await page.waitForFunction(() => '__appTestHooks' in window);
+
+    await waitForPanelReady(page);
+  });
+
+  test('panel renders stale cached books when fetch fails while online', async ({ page }) => {
+    await preloadSecrets(page, { gutenberg: 'fake-rapidapi-key' });
+    await preloadGutenbergCache(page, {
+      cursor: 4,
+      lastFetchedAt: 1,
+      payload: FAKE_BOOKS_RESPONSE.results,
+    });
+    await page.route(
+      'https://project-gutenberg-free-books-api1.p.rapidapi.com/**',
+      async (route) => route.abort(),
+    );
+    await page.goto('/');
+    await page.waitForFunction(() => '__appTestHooks' in window);
+
+    await waitForPanelReady(page);
+    await expect(
+      page.getByText('Project Gutenberg is taking a long pause.'),
+    ).toBeHidden();
+    await expect(
+      page.getByText('Connect to the internet to access Project Gutenberg.'),
+    ).toBeHidden();
   });
 });
