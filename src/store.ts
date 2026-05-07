@@ -7,6 +7,13 @@ import * as secretsIpc from './ipc/secrets';
 import { runMetadataExtractionPass as runMetadataExtractionPassLib } from './lib/extractMetadata';
 import type { Book, FileType, NoteRow, VocabRow } from './db/types';
 import type { Position } from './lib/positionShape';
+import type {
+  ReaderNavItem,
+  ReaderPreferences,
+  ReaderSearchResult,
+  ReaderSearchStatus,
+} from './screens/Reader/readerSupport';
+import { DEFAULT_READER_PREFERENCES } from './screens/Reader/readerSupport';
 
 export type AppView = 'library' | 'settings' | 'reader';
 
@@ -22,6 +29,11 @@ interface AppState {
   currentBookVocab: VocabRow[];
   notesModeActive: boolean;
   extractionInFlight: Set<number>;
+  readerNavItems: ReaderNavItem[];
+  readerSearchQuery: string;
+  readerSearchResults: ReaderSearchResult[];
+  readerSearchStatus: ReaderSearchStatus;
+  readerPreferences: ReaderPreferences;
 
   setView: (view: AppView) => void;
   loadBooks: () => Promise<void>;
@@ -47,6 +59,15 @@ interface AppState {
   setBookCurrentPosition: (id: number, position: Position) => Promise<void>;
   setBookEpubLocations: (id: number, locations: string) => Promise<void>;
   setNotesModeActive: (active: boolean) => void;
+  setReaderNavItems: (items: ReaderNavItem[]) => void;
+  setReaderSearchQuery: (query: string) => void;
+  setReaderSearchResults: (
+    results: ReaderSearchResult[],
+    status?: ReaderSearchStatus,
+  ) => void;
+  setReaderSearchStatus: (status: ReaderSearchStatus) => void;
+  setReaderPreferences: (preferences: ReaderPreferences) => void;
+  clearReaderSupport: () => void;
   reloadNotesForCurrentBook: () => Promise<void>;
   reloadVocabForCurrentBook: () => Promise<void>;
   insertNoteForCurrentBook: (input: {
@@ -75,6 +96,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   currentBookVocab: [],
   notesModeActive: false,
   extractionInFlight: new Set<number>(),
+  readerNavItems: [],
+  readerSearchQuery: '',
+  readerSearchResults: [],
+  readerSearchStatus: 'idle',
+  readerPreferences: DEFAULT_READER_PREFERENCES,
 
   setView: (view) => set({ view }),
 
@@ -168,6 +194,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       notesModeActive: false,
       currentBookNotes: [],
       currentBookVocab: [],
+      readerNavItems: [],
+      readerSearchQuery: '',
+      readerSearchResults: [],
+      readerSearchStatus: 'idle',
     });
     const db = await getDb();
     void booksDb.setLastOpened(db, id);
@@ -184,6 +214,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       notesModeActive: false,
       currentBookNotes: [],
       currentBookVocab: [],
+      readerNavItems: [],
+      readerSearchQuery: '',
+      readerSearchResults: [],
+      readerSearchStatus: 'idle',
     }),
 
   patchBook: (id, patch) =>
@@ -212,6 +246,25 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setNotesModeActive: (active) => set({ notesModeActive: active }),
+
+  setReaderNavItems: (items) => set({ readerNavItems: items }),
+
+  setReaderSearchQuery: (query) => set({ readerSearchQuery: query }),
+
+  setReaderSearchResults: (results, status = 'ready') =>
+    set({ readerSearchResults: results, readerSearchStatus: status }),
+
+  setReaderSearchStatus: (status) => set({ readerSearchStatus: status }),
+
+  setReaderPreferences: (preferences) => set({ readerPreferences: preferences }),
+
+  clearReaderSupport: () =>
+    set({
+      readerNavItems: [],
+      readerSearchQuery: '',
+      readerSearchResults: [],
+      readerSearchStatus: 'idle',
+    }),
 
   reloadNotesForCurrentBook: async () => {
     const id = get().currentBookId;
