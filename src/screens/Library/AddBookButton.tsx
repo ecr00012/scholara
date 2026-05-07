@@ -70,7 +70,7 @@ export function AddBookButton({ variant, onAdded }: Props) {
       )}
     >
       <Quill hovered={hovered} />
-      {isCta && <div className="mt-4 font-serif text-base text-ink-muted">Begin a new study.</div>}
+      
     </button>
   );
 }
