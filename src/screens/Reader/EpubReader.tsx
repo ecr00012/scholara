@@ -18,7 +18,7 @@ import {
 import type { EpubQuoteRange, Position } from '../../lib/positionShape';
 import { useAppStore } from '../../store';
 import { applyEpubAnnotations } from './annotations/EpubAnnotations';
-import { GO_TO_SOURCE_EVENT } from './readerSupport';
+import { GO_TO_SOURCE_EVENT, type ReaderPreferences } from './readerSupport';
 
 const OPEN_NOTE_EVENT = 'scholara:open-note';
 
@@ -52,6 +52,7 @@ export function EpubReader({ book, bytes }: Props) {
 
   const notes = useAppStore((state) => state.currentBookNotes);
   const readerSearchQuery = useAppStore((state) => state.readerSearchQuery);
+  const readerPreferences = useAppStore((state) => state.readerPreferences);
   const setBookCurrentPosition = useAppStore(
     (state) => state.setBookCurrentPosition,
   );
@@ -70,6 +71,7 @@ export function EpubReader({ book, bytes }: Props) {
     if (!container) return;
 
     const epubBook = ePub(bytes) as EpubBook;
+    const initialReaderPreferences = useAppStore.getState().readerPreferences;
     const rendition = epubBook.renderTo(container, {
       width: '100%',
       height: '100%',
@@ -78,6 +80,8 @@ export function EpubReader({ book, bytes }: Props) {
       allowScriptedContent: true,
     });
     renditionRef.current = rendition;
+    applyReaderPreferences(rendition, initialReaderPreferences);
+    exposeReaderPreferencesForTests(initialReaderPreferences);
 
     const initialLocator = readInitialLocator(book.current_position);
     let relocateDebounce: number | null = null;
@@ -412,6 +416,14 @@ export function EpubReader({ book, bytes }: Props) {
 
   useEffect(() => {
     const rendition = renditionRef.current;
+    if (rendition) {
+      applyReaderPreferences(rendition, readerPreferences);
+    }
+    exposeReaderPreferencesForTests(readerPreferences);
+  }, [readerPreferences]);
+
+  useEffect(() => {
+    const rendition = renditionRef.current;
     if (!rendition) return;
 
     const handle = applyEpubAnnotations(rendition, notes, (noteId) => {
@@ -489,6 +501,44 @@ function isEditableTarget(target: EventTarget | null): boolean {
     typeof element?.matches === 'function' &&
     element.matches('input,textarea,[contenteditable="true"]')
   );
+}
+
+function applyReaderPreferences(
+  rendition: Rendition,
+  preferences: ReaderPreferences,
+): void {
+  const fontFamily =
+    preferences.fontFamily === 'original'
+      ? undefined
+      : readerFontFamily(preferences.fontFamily);
+
+  rendition.themes.fontSize(`${preferences.fontScale}%`);
+  if (fontFamily) {
+    rendition.themes.font(fontFamily);
+  } else {
+    rendition.themes.font('');
+  }
+}
+
+function readerFontFamily(font: ReaderPreferences['fontFamily']): string {
+  if (font === 'arial') return 'Arial, sans-serif';
+  if (font === 'georgia') return 'Georgia, serif';
+  if (font === 'iowan') {
+    return '"Iowan Old Style", "Palatino Linotype", Georgia, serif';
+  }
+  return '';
+}
+
+function exposeReaderPreferencesForTests(
+  preferences: ReaderPreferences,
+): void {
+  if (!import.meta.env.VITE_E2E && import.meta.env.MODE !== 'test') return;
+
+  (
+    window as Window & {
+      __SCHOLARA_READER_PREFS__?: ReaderPreferences;
+    }
+  ).__SCHOLARA_READER_PREFS__ = preferences;
 }
 
 function readInitialLocator(currentPosition: string | null): string | undefined {
