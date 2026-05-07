@@ -15,6 +15,7 @@ interface AppState {
   books: Book[];
   apiKey: string | null;
   gutenbergApiKey: string | null;
+  gutenbergApiKeyError: string | null;
   apiKeyBannerDismissed: boolean;
   currentBookId: number | null;
   currentBookNotes: NoteRow[];
@@ -67,6 +68,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   books: [],
   apiKey: null,
   gutenbergApiKey: null,
+  gutenbergApiKeyError: null,
   apiKeyBannerDismissed: false,
   currentBookId: null,
   currentBookNotes: [],
@@ -121,13 +123,32 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   loadGutenbergApiKey: async () => {
-    const gutenbergApiKey = await secretsIpc.getSecret('gutenberg');
-    set({ gutenbergApiKey });
+    try {
+      const gutenbergApiKey = await secretsIpc.getSecret('gutenberg');
+      set({ gutenbergApiKey, gutenbergApiKeyError: null });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn('Could not load Gutenberg API key:', err);
+      set({
+        gutenbergApiKeyError: `Could not load your Project Gutenberg API key from the system keychain. ${message}`,
+      });
+    }
   },
 
   saveGutenbergApiKey: async (key) => {
-    await secretsIpc.setSecret('gutenberg', key);
-    set({ gutenbergApiKey: key === '' ? null : key });
+    try {
+      await secretsIpc.setSecret('gutenberg', key);
+      set({
+        gutenbergApiKey: key === '' ? null : key,
+        gutenbergApiKeyError: null,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      set({
+        gutenbergApiKeyError: `Could not save your Project Gutenberg API key to the system keychain. ${message}`,
+      });
+      throw err;
+    }
   },
 
   dismissApiKeyBanner: () => set({ apiKeyBannerDismissed: true }),

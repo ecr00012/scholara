@@ -19,6 +19,7 @@ import type { PanelState } from './types';
 
 export function GutenbergPanel() {
   const apiKey = useAppStore((s) => s.gutenbergApiKey);
+  const apiKeyError = useAppStore((s) => s.gutenbergApiKeyError);
   const saveApiKey = useAppStore((s) => s.saveGutenbergApiKey);
   const [state, setState] = useState<PanelState>({ kind: 'loading' });
   const [selected, setSelected] = useState<GutenbergBook | null>(null);
@@ -117,10 +118,18 @@ export function GutenbergPanel() {
       <PanelHeading />
       {state.kind === 'loading' && <LoadingSkeleton />}
       {state.kind === 'missing-key' && (
-        <ApiKeyForm variant="missing-key" onSaved={handleKeySaved} />
+        <ApiKeyForm
+          variant="missing-key"
+          onSaved={handleKeySaved}
+          keychainError={apiKeyError}
+        />
       )}
       {state.kind === 'invalid-key' && (
-        <ApiKeyForm variant="invalid-key" onSaved={handleKeySaved} />
+        <ApiKeyForm
+          variant="invalid-key"
+          onSaved={handleKeySaved}
+          keychainError={apiKeyError}
+        />
       )}
       {state.kind === 'offline' && <OfflineState />}
       {state.kind === 'api-error' && <ApiErrorState onRetry={handleRetry} />}

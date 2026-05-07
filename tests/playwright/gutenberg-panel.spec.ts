@@ -64,6 +64,22 @@ async function preloadSecrets(page: Page, secrets: Record<string, string>) {
   }, secrets);
 }
 
+async function preloadSecretFailures(
+  page: Page,
+  failures: {
+    get?: Record<string, string>;
+    set?: Record<string, string>;
+  },
+) {
+  await page.addInitScript((preloaded) => {
+    (
+      window as Window & {
+        __SCHOLARA_SECRET_FAILURES__?: typeof preloaded;
+      }
+    ).__SCHOLARA_SECRET_FAILURES__ = preloaded;
+  }, failures);
+}
+
 async function waitForPanelReady(page: Page) {
   await expect(page.getByRole('button', { name: 'Open Pride and Prejudice' })).toBeVisible({
     timeout: 10_000,
@@ -260,5 +276,44 @@ test.describe('Gutenberg panel', () => {
     await expect(
       page.getByText('Connect to the internet to access Project Gutenberg.'),
     ).toBeHidden();
+  });
+
+  test('panel shows a keychain save error when saving the Gutenberg key fails', async ({
+    page,
+  }) => {
+    await preloadSecrets(page, {});
+    await preloadSecretFailures(page, {
+      set: { gutenberg: 'mock keychain write failed' },
+    });
+    await page.goto('/');
+    await page.waitForFunction(() => '__appTestHooks' in window);
+
+    await page.locator('input[type="password"]').first().fill('fake-rapidapi-key');
+    await page.getByRole('button', { name: 'Save' }).first().click();
+
+    await expect(
+      page.getByText(
+        'Could not save your Project Gutenberg API key to the system keychain. mock keychain write failed',
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Open Pride and Prejudice' }),
+    ).toBeHidden();
+  });
+
+  test('panel shows a keychain load error when loading the Gutenberg key fails', async ({
+    page,
+  }) => {
+    await preloadSecretFailures(page, {
+      get: { gutenberg: 'mock keychain read failed' },
+    });
+    await page.goto('/');
+    await page.waitForFunction(() => '__appTestHooks' in window);
+
+    await expect(
+      page.getByText(
+        'Could not load your Project Gutenberg API key from the system keychain. mock keychain read failed',
+      ),
+    ).toBeVisible();
   });
 });

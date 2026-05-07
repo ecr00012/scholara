@@ -7,7 +7,8 @@ type Variant = 'missing-key' | 'invalid-key';
 
 interface Props {
   variant: Variant;
-  onSaved: (key: string) => void;
+  onSaved: (key: string) => Promise<void>;
+  keychainError?: string | null;
 }
 
 type SubmitState =
@@ -15,9 +16,10 @@ type SubmitState =
   | { kind: 'verifying' }
   | { kind: 'invalid-key' }
   | { kind: 'offline' }
-  | { kind: 'api-error' };
+  | { kind: 'api-error' }
+  | { kind: 'save-error' };
 
-export function ApiKeyForm({ variant, onSaved }: Props) {
+export function ApiKeyForm({ variant, onSaved, keychainError }: Props) {
   const [draft, setDraft] = useState('');
   const [submit, setSubmit] = useState<SubmitState>({ kind: 'idle' });
 
@@ -27,7 +29,11 @@ export function ApiKeyForm({ variant, onSaved }: Props) {
     setSubmit({ kind: 'verifying' });
     const result = await verifyKey(key);
     if (result.kind === 'ok') {
-      onSaved(key);
+      try {
+        await onSaved(key);
+      } catch {
+        setSubmit({ kind: 'save-error' });
+      }
       return;
     }
     if (result.kind === 'invalid-key') {
@@ -50,6 +56,15 @@ export function ApiKeyForm({ variant, onSaved }: Props) {
     }
     if (submit.kind === 'api-error') {
       return "Couldn't reach the Project Gutenberg API.";
+    }
+    if (submit.kind === 'save-error') {
+      return (
+        keychainError ??
+        'Could not save your Project Gutenberg API key to the system keychain.'
+      );
+    }
+    if (keychainError) {
+      return keychainError;
     }
     return null;
   })();

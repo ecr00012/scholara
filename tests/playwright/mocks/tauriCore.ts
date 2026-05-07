@@ -35,10 +35,18 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       return null as T;
     case 'get_secret': {
       const name = String(args.name ?? '');
+      const failures = getSecretFailures();
+      if (failures.get[name]) {
+        throw new Error(failures.get[name]);
+      }
       return (savedSecrets[name] ?? null) as T;
     }
     case 'set_secret': {
       const name = String(args.name ?? '');
+      const failures = getSecretFailures();
+      if (failures.set[name]) {
+        throw new Error(failures.set[name]);
+      }
       const value = typeof args.value === 'string' ? args.value : '';
       if (value === '') {
         delete savedSecrets[name];
@@ -110,6 +118,23 @@ function getSecrets(): Record<string, string> {
     target.__SCHOLARA_SECRETS__.gutenberg = target.__SCHOLARA_GUTENBERG_KEY__;
   }
   return target.__SCHOLARA_SECRETS__;
+}
+
+function getSecretFailures(): {
+  get: Record<string, string | undefined>;
+  set: Record<string, string | undefined>;
+} {
+  const target = globalThis as typeof globalThis & {
+    __SCHOLARA_SECRET_FAILURES__?: {
+      get?: Record<string, string | undefined>;
+      set?: Record<string, string | undefined>;
+    };
+  };
+
+  return {
+    get: target.__SCHOLARA_SECRET_FAILURES__?.get ?? {},
+    set: target.__SCHOLARA_SECRET_FAILURES__?.set ?? {},
+  };
 }
 
 function bytesToNumberArray(value: ArrayBuffer | number[] | Uint8Array | undefined): number[] {
