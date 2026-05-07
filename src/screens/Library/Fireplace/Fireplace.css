@@ -1,7 +1,9 @@
 .fireplace-widget {
-  --ash: #6b5d50;
-  --brick: #8a6a52;
-  --brick-dim: #5a4434;
+  --ash: #7a6c5d;
+  --brick: #9a8270;
+  --brick-dim: #6a4f3c;
+
+  /* keep these warm fire/spark colors */
   --ember-1: #ff7a2a;
   --ember-3: #ffd884;
   --candle: #ffd884;
@@ -12,12 +14,15 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  border-radius: 16px;
+  border-radius: 0.75rem;
 
   background:
-    radial-gradient(ellipse 70% 55% at 50% 65%, rgba(255, 140, 58, 0.18), transparent 70%),
-    radial-gradient(ellipse 85% 70% at 50% 65%, rgba(255, 77, 31, 0.08), transparent 75%),
-    #1a1410;
+    radial-gradient(ellipse 70% 55% at 50% 66%, rgba(255, 140, 58, 0.16), transparent 68%),
+    radial-gradient(ellipse 90% 75% at 50% 70%, rgba(200, 112, 44, 0.08), transparent 74%),
+    hsl(60 6% 97%);
+
+  border: 1px solid hsl(30 15% 88%);
+  color: hsl(28 18% 11%);
 }
 
 .fireplace-art {
@@ -48,17 +53,19 @@
   left: 0;
   right: 0;
   bottom: 100%;
-  color: var(--ash);
-  opacity: 0.55;
+  color: hsl(28 10% 40%);
+  opacity: 0.35;
 }
 
 .fireplace-structure {
   color: var(--brick-dim);
+  opacity: 0.82;
   animation: fireplace-pulse 5.4s ease-in-out infinite;
 }
 
 .fireplace-glow {
   color: var(--brick);
+  opacity: 0.9;
 }
 
 .fireplace-logs {
@@ -68,15 +75,15 @@
 .fireplace-flame {
   color: var(--ember-1);
   text-shadow:
-    0 0 6px rgba(255, 140, 58, 0.7),
-    0 0 16px rgba(255, 77, 31, 0.45);
+    0 0 6px rgba(255, 140, 58, 0.72),
+    0 0 16px rgba(255, 77, 31, 0.42);
 }
 
 .fireplace-ember {
   color: var(--ember-3);
   text-shadow:
     0 0 4px rgba(255, 216, 132, 0.9),
-    0 0 10px rgba(255, 140, 58, 0.6);
+    0 0 10px rgba(255, 140, 58, 0.62);
 }
 
 .fireplace-candle {
@@ -89,14 +96,14 @@
 @keyframes fireplace-pulse {
   0%,
   100% {
-    opacity: 0.85;
+    opacity: 0.76;
   }
 
   45% {
-    opacity: 1;
+    opacity: 0.92;
   }
 
   70% {
-    opacity: 0.7;
+    opacity: 0.65;
   }
 }

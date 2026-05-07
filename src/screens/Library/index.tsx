@@ -17,50 +17,41 @@ import { Fireplace } from './Fireplace/Fireplace';
 export function LibraryScreen() {
   const books = useAppStore((s) => s.books);
   const insertBook = useAppStore((s) => s.insertBook);
-  const runMetadataExtractionPass = useAppStore(
-    (s) => s.runMetadataExtractionPass,
-  );
+  const runMetadataExtractionPass = useAppStore((s) => s.runMetadataExtractionPass);
   const [editing, setEditing] = useState<Book | null>(null);
   const [deleting, setDeleting] = useState<Book | null>(null);
 
   useEffect(() => {
     let unlisten: UnlistenFn | undefined;
     const setup = async () => {
-      unlisten = await listen<{ paths: string[] }>(
-        'tauri://drag-drop',
-        async (event) => {
-          const paths = event.payload.paths.filter((p) =>
-            /\.(pdf|epub)$/i.test(p),
-          );
-          if (paths.length === 0) {
-            toast.error('Only PDF and EPUB files are supported.');
-            return;
+      unlisten = await listen<{ paths: string[] }>('tauri://drag-drop', async (event) => {
+        const paths = event.payload.paths.filter((p) => /\.(pdf|epub)$/i.test(p));
+        if (paths.length === 0) {
+          toast.error('Only PDF and EPUB files are supported.');
+          return;
+        }
+        let addedBooks = false;
+        for (const p of paths) {
+          try {
+            const { storedPath, fileType } = await copyUploadedFile(p);
+            const title = titleFromFilename(p);
+            const book = await insertBook({
+              title,
+              file_path: storedPath,
+              file_type: fileType,
+            });
+            addedBooks = true;
+            toast.success(`Added "${book.title}"`, {
+              action: { label: 'Edit', onClick: () => setEditing(book) },
+            });
+          } catch (err) {
+            toast.error(`Could not save dropped file: ${(err as Error).message}`);
           }
-          let addedBooks = false;
-          for (const p of paths) {
-            try {
-              const { storedPath, fileType } = await copyUploadedFile(p);
-              const title = titleFromFilename(p);
-              const book = await insertBook({
-                title,
-                file_path: storedPath,
-                file_type: fileType,
-              });
-              addedBooks = true;
-              toast.success(`Added "${book.title}"`, {
-                action: { label: 'Edit', onClick: () => setEditing(book) },
-              });
-            } catch (err) {
-              toast.error(
-                `Could not save dropped file: ${(err as Error).message}`,
-              );
-            }
-          }
-          if (addedBooks) {
-            await runMetadataExtractionPass();
-          }
-        },
-      );
+        }
+        if (addedBooks) {
+          await runMetadataExtractionPass();
+        }
+      });
     };
     void setup();
     return () => {
@@ -78,7 +69,7 @@ export function LibraryScreen() {
       <aside className="flex flex-col gap-4 border-l border-stone-200 p-6">
         <GutenbergPanel />
         <div className="mt-auto h-40 w-full overflow-hidden rounded-2xl">
-          <Fireplace scale={0.4} />
+          <Fireplace scale={0.46} />
         </div>
       </aside>
       <EditMetadataModal book={editing} open={editing !== null} onClose={() => setEditing(null)} />
