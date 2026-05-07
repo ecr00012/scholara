@@ -1,12 +1,18 @@
 import { Trash2 } from 'lucide-react';
+import { useMemo } from 'react';
 import type { Book, NoteRow } from '../../../db/types';
-import { formatPositionLabel } from '../../../lib/positionShape';
+import {
+  formatPositionLabel,
+  sameEpubSectionFromJson,
+} from '../../../lib/positionShape';
 import { useAppStore } from '../../../store';
+import type { ReaderNavItem } from '../readerSupport';
 
 const OPEN_NOTE_EVENT = 'scholara:open-note';
 
 interface Props {
   book: Book;
+  scope: ReaderNavItem | null;
 }
 
 interface NoteListProps {
@@ -15,10 +21,24 @@ interface NoteListProps {
   notes: NoteRow[];
 }
 
-export function NotesTab({ book: _book }: Props) {
+export function NotesTab({ book, scope }: Props) {
   const notes = useAppStore((state) => state.currentBookNotes);
+  const scopedNotes = useMemo(
+    () => filterNotesByScope(notes, scope),
+    [notes, scope],
+  );
 
-  return <NotesList book={_book} emptyMessage="No notes yet." notes={notes} />;
+  return <NotesList book={book} emptyMessage="No notes yet." notes={scopedNotes} />;
+}
+
+export function filterNotesByScope(
+  notes: NoteRow[],
+  scope: ReaderNavItem | null,
+): NoteRow[] {
+  if (!scope) return notes;
+  return notes.filter((note) =>
+    sameEpubSectionFromJson(note.page_or_position, scope.position),
+  );
 }
 
 export function NotesList({ book, emptyMessage, notes }: NoteListProps) {

@@ -84,6 +84,40 @@ export function formatPositionLabel(
   return `${position.label} · Page ${page}`;
 }
 
+export function sameEpubSectionFromJson(
+  noteJson: string,
+  scopePosition: Position,
+): boolean {
+  if (scopePosition.type !== 'epub') return false;
+
+  const notePosition = getSourcePositionFromJson(noteJson);
+  if (!notePosition || notePosition.type !== 'epub') return false;
+
+  const noteSection = epubSectionKey(notePosition.locator);
+  const scopeSection = epubSectionKey(scopePosition.locator);
+  if (noteSection && scopeSection) return noteSection === scopeSection;
+
+  return (
+    normalizePositionLabel(notePosition.label) ===
+    normalizePositionLabel(scopePosition.label)
+  );
+}
+
+export function epubSectionKey(locator: string): string | null {
+  if (!locator) return null;
+  if (!locator.startsWith('epubcfi(')) {
+    return stripFragment(locator);
+  }
+
+  const bangIndex = locator.indexOf('!');
+  if (bangIndex === -1) return null;
+  return locator.slice(0, bangIndex);
+}
+
+export function normalizePositionLabel(label: string): string {
+  return label.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+}
+
 function estimateEpubPage(
   fraction: number,
   epubLocations?: string | null,
@@ -115,4 +149,9 @@ function countEpubLocations(epubLocations?: string | null): number | null {
   }
 
   return null;
+}
+
+function stripFragment(href: string): string {
+  const hashIdx = href.indexOf('#');
+  return hashIdx === -1 ? href : href.slice(0, hashIdx);
 }

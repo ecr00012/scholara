@@ -5,8 +5,10 @@ import {
   deserializePosition,
   serializeQuoteRange,
   deserializeQuoteRange,
+  epubSectionKey,
   formatPositionLabel,
   isQuoteRange,
+  sameEpubSectionFromJson,
 } from '../../src/lib/positionShape';
 import type { Position, EpubQuoteRange, PdfQuoteRange } from '../../src/lib/positionShape';
 
@@ -80,5 +82,65 @@ describe('positionShape', () => {
         epubLocations: JSON.stringify(Array.from({ length: 50 }, (_, index) => index)),
       }),
     ).toBe('Chapter 2 · Page 10');
+  });
+
+  it('extracts EPUB section keys from CFI and href locators', () => {
+    expect(epubSectionKey('epubcfi(/6/4!/4/2/2)')).toBe('epubcfi(/6/4');
+    expect(epubSectionKey('Text/chapter-1.xhtml#start')).toBe(
+      'Text/chapter-1.xhtml',
+    );
+  });
+
+  it('matches EPUB notes to the same section', () => {
+    const scope: Position = {
+      type: 'epub',
+      locator: 'Text/chapter-1.xhtml',
+      fraction: 0.2,
+      label: 'Chapter One',
+    };
+    const note: Position = {
+      type: 'epub',
+      locator: 'Text/chapter-1.xhtml#para',
+      fraction: 0.21,
+      label: 'Chapter One',
+    };
+
+    expect(sameEpubSectionFromJson(serializePosition(note), scope)).toBe(true);
+  });
+
+  it('matches EPUB quote ranges from their source section', () => {
+    const scope: Position = {
+      type: 'epub',
+      locator: 'epubcfi(/6/4!/4/2/2)',
+      fraction: 0.3,
+      label: 'Chapter Two',
+    };
+    const range: EpubQuoteRange = {
+      start: {
+        type: 'epub',
+        locator: 'epubcfi(/6/4!/4/8/2)',
+        fraction: 0.31,
+        label: 'Chapter Two',
+      },
+      end: {
+        type: 'epub',
+        locator: 'epubcfi(/6/4!/4/10/2)',
+        fraction: 0.32,
+        label: 'Chapter Two',
+      },
+    };
+
+    expect(sameEpubSectionFromJson(serializeQuoteRange(range), scope)).toBe(true);
+  });
+
+  it('does not match malformed note JSON to a chapter scope', () => {
+    const scope: Position = {
+      type: 'epub',
+      locator: 'Text/chapter-1.xhtml',
+      fraction: 0.2,
+      label: 'Chapter One',
+    };
+
+    expect(sameEpubSectionFromJson('{not-json', scope)).toBe(false);
   });
 });
