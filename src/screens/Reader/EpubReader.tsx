@@ -563,7 +563,7 @@ export function EpubReader({ book, bytes }: Props) {
         aria-label="Previous EPUB page"
         title="Previous EPUB page"
         onClick={() => pageChangeRef.current?.('prev')}
-        className="absolute left-2 top-1/2 z-10 size-11 -translate-y-1/2 rounded-full border border-amber-100 bg-cream/85 text-ink-muted shadow-lg backdrop-blur-md transition hover:bg-white hover:text-ink focus-visible:ring-accent-gold/40 sm:left-4"
+        className="absolute left-2 top-1/2 z-10 size-11 -translate-y-1/2 rounded-full border border-amber-100/60 bg-cream/45 text-ink-muted/70 opacity-70 shadow-md backdrop-blur-sm transition hover:bg-white/85 hover:text-ink hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-accent-gold/40 sm:left-4"
       >
         <ChevronLeft className="h-7 w-7" />
       </Button>
@@ -574,7 +574,7 @@ export function EpubReader({ book, bytes }: Props) {
         aria-label="Next EPUB page"
         title="Next EPUB page"
         onClick={() => pageChangeRef.current?.('next')}
-        className="absolute right-2 top-1/2 z-10 size-11 -translate-y-1/2 rounded-full border border-amber-100 bg-cream/85 text-ink-muted shadow-lg backdrop-blur-md transition hover:bg-white hover:text-ink focus-visible:ring-accent-gold/40 sm:right-4"
+        className="absolute right-2 top-1/2 z-10 size-11 -translate-y-1/2 rounded-full border border-amber-100/60 bg-cream/45 text-ink-muted/70 opacity-70 shadow-md backdrop-blur-sm transition hover:bg-white/85 hover:text-ink hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-accent-gold/40 sm:right-4"
       >
         <ChevronRight className="h-7 w-7" />
       </Button>
