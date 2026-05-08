@@ -24,7 +24,7 @@ Replace the `AiChatTab` placeholder in the Reader's Agent Display with a streami
 - **Rust (Tauri commands):** owns the Anthropic API key (keychain via existing `getSecret`/`setSecret`); makes all HTTP calls to `api.anthropic.com`; streams SSE chunks back to the renderer over a Tauri channel. The renderer never sees the key.
 - **TypeScript (renderer):** owns the agent loop — message assembly, tool-call routing, spoiler eval, history persistence, UI. No LangChain.
 - **SQLite (`tauri-plugin-sql`):** stores threads, messages, embeddings (BLOB), preferences, profile.
-- **transformers.js (renderer):** runs `Xenova/all-MiniLM-L6-v2` (~25 MB, downloaded once on first index) for embedding chunks and queries. Brute-force cosine in SQL.
+- **transformers.js (renderer):** runs `Xenova/all-MiniLM-L6-v2` for embedding chunks and queries. The model files (~30 MB total: quantized ONNX + tokenizer/config) are **bundled with the app** as Tauri resources under `src-tauri/resources/models/Xenova/all-MiniLM-L6-v2/`, so indexing works fully offline from first launch. transformers.js is configured with `env.allowRemoteModels = false` and `env.localModelPath` pointed at the resolved resource directory. Brute-force cosine in SQL.
 
 ### 1.2 Per-turn flow
 
@@ -42,7 +42,7 @@ Replace the `AiChatTab` placeholder in the Reader's Agent Display with a streami
 - `src/agent/tools/searchBook.ts`, `src/agent/tools/searchNotes.ts` — tool implementations.
 - `src/agent/spoilerGuard.ts` — query-time retrieval cap (PDF page / EPUB CFI → max ordinal).
 - `src/rag/index.ts` — chunk + embed + store pipeline.
-- `src/rag/embedder.ts` — transformers.js singleton wrapper.
+- `src/rag/embedder.ts` — transformers.js singleton wrapper; resolves the bundled model path via Tauri (`resolveResource`) at first use.
 - `src/db/threads.ts`, `src/db/messages.ts`, `src/db/bookChunks.ts`, `src/db/preferences.ts`, `src/db/readerProfile.ts`.
 - `src/screens/Reader/agentPanel/AiChatTab.tsx` — replaces stub; composes subcomponents.
 - `src/screens/Reader/agentPanel/chat/MessageList.tsx`, `Composer.tsx`, `SpoilerToggle.tsx`, `HistoryPopover.tsx`, `IndexingProgress.tsx`.
@@ -283,7 +283,7 @@ async function runTurn(thread, userText) {
 ### 4.7 Offline behavior
 
 - If `navigator.onLine === false` when sending: show the standard non-blocking toast *"Connect to the internet to use AI features."* Composer stays enabled; user can edit and resend.
-- Indexing also requires network on first run (model download); show a clear empty state if offline before initial download.
+- Indexing runs fully offline (the embedding model is bundled), so opening the AI Chat tab on a new book works without a network connection — the user just can't send a chat turn until they're online.
 
 ### 4.8 Empty / cold states
 
@@ -300,10 +300,10 @@ Security is proportionate to *"LLM wrapper, user's own key, local-only desktop a
 - **Key storage.** OS keychain via `getSecret('anthropic_api_key')` / `setSecret`. Service `"scholara"`. Never written to SQLite, logs, or telemetry. Settings UI shows a masked placeholder (`sk-ant-•••…last4`) and a Replace key action.
 - **Key in transit.** Renderer never sees the key. `chat_stream` reads from keychain and attaches `x-api-key` in Rust (`reqwest`), streams response back. Auto-title and profile-update calls go through the same command.
 - **Key in errors.** Rust strips `x-api-key` from error payloads before emission. Renderer logs never include request headers.
-- **Tauri allowlist / CSP.** Restrict renderer-side fetch so it cannot reach `api.anthropic.com` directly — only the Rust command can. CSP `connect-src` allows `'self'`, `tauri:`, and the Hugging Face CDN host(s) needed for the one-time embedding model download (`https://huggingface.co` and `https://cdn-lfs.huggingface.co`); explicitly excludes `api.anthropic.com`.
+- **Tauri allowlist / CSP.** Restrict renderer-side fetch so it cannot reach any external host. CSP `connect-src 'self' tauri:` only — explicitly excludes `api.anthropic.com`. The renderer never makes external network calls; LLM traffic goes through the Rust command, and the embedding model is bundled (no Hugging Face fetch needed).
 - **Tool execution.** Tools are pure local SQL + cosine. No tool reads arbitrary files or shells out. `search_book` and `search_notes` accept only `{query, k}`.
 - **Prompt injection from book content.** Retrieved passages are wrapped in delimited blocks (`<<<RETRIEVED PASSAGE …>>>`); the system prompt instructs the model to treat retrieved text as data, not instructions. The agent has no destructive tool surface, so the practical risk ceiling is low.
-- **Embedding model integrity.** transformers.js downloads ONNX weights from the Hugging Face CDN over HTTPS on first use. Pin a specific revision id and store under app-data so subsequent loads are local.
+- **Embedding model integrity.** Model files ship inside the signed app bundle, so integrity follows from the standard installer signature. No runtime download path means no MITM or CDN-availability surface. Upgrading the embedding model requires an app release.
 - **Data export / wipe.** Settings has Export chat data (JSON) and Delete all chats. `ON DELETE CASCADE` ensures deleting a book also drops its threads, messages, chunks, profile.
 
 ### 5.2 Error handling
@@ -335,7 +335,8 @@ Security is proportionate to *"LLM wrapper, user's own key, local-only desktop a
 
 **Manual checklist (recorded in plan, not automated):**
 - Bad key, no network, mid-stream cancel, very long book (≥ 800 pages PDF) indexing time + memory.
-- Cross-platform: macOS, Windows, Linux indexing model download + keychain access (Linux uses `secret-service`; verify availability or surface a clear error).
+- Cross-platform: macOS, Windows, Linux — verify the bundled model loads via `resolveResource` on each platform, and verify keychain access (Linux uses `secret-service`; surface a clear error if unavailable).
+- Installer size sanity-check on each platform after adding the ~30 MB model bundle.
 
 ---
 
