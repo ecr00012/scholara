@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
 import { useAppStore } from '../../store';
@@ -19,42 +19,60 @@ export function LibraryScreen() {
   const runMetadataExtractionPass = useAppStore((s) => s.runMetadataExtractionPass);
   const [editing, setEditing] = useState<Book | null>(null);
   const [deleting, setDeleting] = useState<Book | null>(null);
+  const processingDropsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let unlisten: UnlistenFn | undefined;
+    let disposed = false;
+
     const setup = async () => {
-      unlisten = await listen<{ paths: string[] }>('tauri://drag-drop', async (event) => {
+      const cleanup = await listen<{ paths: string[] }>('tauri://drag-drop', async (event) => {
         const paths = event.payload.paths.filter((p) => /\.(pdf|epub)$/i.test(p));
         if (paths.length === 0) {
           toast.error('Only PDF and EPUB files are supported.');
           return;
         }
+        const dropKey = paths.join('\n');
+        if (processingDropsRef.current.has(dropKey)) return;
+
+        processingDropsRef.current.add(dropKey);
         let addedBooks = false;
-        for (const p of paths) {
-          try {
-            const { storedPath, fileType } = await copyUploadedFile(p);
-            const title = titleFromFilename(p);
-            const book = await insertBook({
-              title,
-              file_path: storedPath,
-              file_type: fileType,
-            });
-            addedBooks = true;
-            toast.success(`Added "${book.title}"`, {
-              action: { label: 'Edit', onClick: () => setEditing(book) },
-            });
-          } catch (err) {
-            toast.error(`Could not save dropped file: ${(err as Error).message}`);
+        try {
+          for (const p of paths) {
+            try {
+              const { storedPath, fileType } = await copyUploadedFile(p);
+              const title = titleFromFilename(p);
+              const book = await insertBook({
+                title,
+                file_path: storedPath,
+                file_type: fileType,
+              });
+              addedBooks = true;
+              toast.success(`Added "${book.title}"`, {
+                action: { label: 'Edit', onClick: () => setEditing(book) },
+              });
+            } catch (err) {
+              toast.error(`Could not save dropped file: ${(err as Error).message}`);
+            }
           }
-        }
-        if (addedBooks) {
-          await runMetadataExtractionPass();
+          if (addedBooks) {
+            await runMetadataExtractionPass();
+          }
+        } finally {
+          processingDropsRef.current.delete(dropKey);
         }
       });
+      if (disposed) {
+        cleanup();
+        return;
+      }
+      unlisten = cleanup;
     };
+
     void setup();
     return () => {
-      if (unlisten) unlisten();
+      disposed = true;
+      unlisten?.();
     };
   }, [insertBook, runMetadataExtractionPass]);
 
