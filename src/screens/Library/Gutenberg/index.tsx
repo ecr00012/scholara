@@ -7,7 +7,10 @@ import {
   setCachedFetch,
 } from '../../../db/gutenbergPanel';
 import { fetchBooks, type GutenbergBook } from '../../../lib/gutenbergApi';
-import { isFresh } from '../../../lib/gutenbergCacheFreshness';
+import {
+  FRESHNESS_TTL_MS,
+  isFresh,
+} from '../../../lib/gutenbergCacheFreshness';
 import { ApiErrorState } from './ApiErrorState';
 import { ApiKeyForm } from './ApiKeyForm';
 import { BookGrid2x2 } from './BookGrid2x2';
@@ -24,6 +27,28 @@ export function GutenbergPanel() {
   const [state, setState] = useState<PanelState>({ kind: 'loading' });
   const [selected, setSelected] = useState<GutenbergBook | null>(null);
   const evaluatingRef = useRef(false);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const evaluateRef = useRef<() => Promise<void>>(async () => {});
+
+  const clearRefreshTimer = useCallback(() => {
+    if (refreshTimerRef.current === null) return;
+    clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = null;
+  }, []);
+
+  const scheduleRefresh = useCallback(
+    (lastFetchedAt: number | null, now: number) => {
+      clearRefreshTimer();
+      if (lastFetchedAt === null) return;
+
+      const refreshIn = Math.max(0, lastFetchedAt + FRESHNESS_TTL_MS - now);
+      refreshTimerRef.current = setTimeout(() => {
+        refreshTimerRef.current = null;
+        void evaluateRef.current();
+      }, refreshIn);
+    },
+    [clearRefreshTimer],
+  );
 
   const evaluate = useCallback(async () => {
     if (evaluatingRef.current) return;
@@ -31,6 +56,7 @@ export function GutenbergPanel() {
     try {
       const currentKey = useAppStore.getState().gutenbergApiKey;
       if (!currentKey) {
+        clearRefreshTimer();
         setState((prev) =>
           prev.kind === 'invalid-key' ? prev : { kind: 'missing-key' },
         );
@@ -45,11 +71,13 @@ export function GutenbergPanel() {
         hasCachedPayload &&
         isFresh(cache.lastFetchedAt, Date.now())
       ) {
+        scheduleRefresh(cache.lastFetchedAt, Date.now());
         setState({ kind: 'ready', books: cache.payload! });
         return;
       }
 
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        clearRefreshTimer();
         setState(
           hasCachedPayload
             ? { kind: 'ready', books: cache.payload! }
@@ -61,35 +89,46 @@ export function GutenbergPanel() {
       setState({ kind: 'loading' });
       const result = await fetchBooks(cache.cursor, currentKey);
       if (result.kind === 'ok') {
+        const fetchedAt = Date.now();
         const next = {
           cursor: advanceCursor(cache.cursor),
-          lastFetchedAt: Date.now(),
+          lastFetchedAt: fetchedAt,
           payload: result.books,
         };
         await setCachedFetch(db, next);
+        scheduleRefresh(next.lastFetchedAt, fetchedAt);
         setState({ kind: 'ready', books: result.books });
         return;
       }
       if (result.kind === 'invalid-key') {
+        clearRefreshTimer();
         await saveApiKey('');
         setState({ kind: 'invalid-key' });
         return;
       }
       if (hasCachedPayload) {
+        clearRefreshTimer();
         setState({ kind: 'ready', books: cache.payload! });
         return;
       }
+      clearRefreshTimer();
       setState({
         kind: result.kind === 'offline' ? 'offline' : 'api-error',
       });
     } finally {
       evaluatingRef.current = false;
     }
-  }, [saveApiKey]);
+  }, [clearRefreshTimer, saveApiKey, scheduleRefresh]);
+
+  useEffect(() => {
+    evaluateRef.current = evaluate;
+  }, [evaluate]);
 
   useEffect(() => {
     void evaluate();
   }, [evaluate, apiKey]);
+
+  useEffect(() => clearRefreshTimer, [clearRefreshTimer]);
 
   useEffect(() => {
     const onOnline = () => {

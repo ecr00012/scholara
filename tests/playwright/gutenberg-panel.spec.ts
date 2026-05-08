@@ -1,5 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 
+const FRESHNESS_TTL_MS = 24 * 60 * 60 * 1000;
+
 const FAKE_BOOKS_RESPONSE = {
   results: [
     {
@@ -57,6 +59,22 @@ const FAKE_BOOKS_RESPONSE = {
   ],
 };
 
+const NEXT_FAKE_BOOKS_RESPONSE = {
+  results: FAKE_BOOKS_RESPONSE.results.map((book, index) => ({
+    ...book,
+    id: book.id + 10_000,
+    title: `Next Gutenberg Pick ${index + 1}`,
+    cover_image: `https://example.invalid/next-cover-${index + 1}.jpg`,
+  })),
+};
+
+const CACHED_BOOKS = FAKE_BOOKS_RESPONSE.results.map((book, index) => ({
+  ...book,
+  id: book.id + 20_000,
+  title: `Cached Gutenberg Pick ${index + 1}`,
+  cover_image: `https://example.invalid/cached-cover-${index + 1}.jpg`,
+}));
+
 async function preloadSecrets(page: Page, secrets: Record<string, string>) {
   await page.addInitScript((preloaded) => {
     (window as Window & { __SCHOLARA_SECRETS__?: Record<string, string> }).__SCHOLARA_SECRETS__ =
@@ -85,6 +103,34 @@ async function waitForPanelReady(page: Page) {
   await expect(page.getByRole('button', { name: 'Open Pride and Prejudice' })).toBeVisible({
     timeout: 10_000,
   });
+}
+
+async function routeGutenbergBooks(
+  page: Page,
+  response: typeof FAKE_BOOKS_RESPONSE,
+  offsets: number[],
+) {
+  await page.route(
+    'https://project-gutenberg-free-books-api1.p.rapidapi.com/**',
+    async (route, request) => {
+      const url = new URL(request.url());
+      if (url.searchParams.get('page_size') === '1') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ results: [response.results[0]] }),
+        });
+        return;
+      }
+
+      offsets.push(Number(url.searchParams.get('offset') ?? 0));
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(response),
+      });
+    },
+  );
 }
 
 async function preloadGutenbergCache(
@@ -254,6 +300,85 @@ test.describe('Gutenberg panel', () => {
     await page.waitForFunction(() => '__appTestHooks' in window);
 
     await waitForPanelReady(page);
+  });
+
+  test('panel renders fresh cached books without calling the Gutenberg books API', async ({
+    page,
+  }) => {
+    const offsets: number[] = [];
+    await routeGutenbergBooks(page, NEXT_FAKE_BOOKS_RESPONSE, offsets);
+    await preloadSecrets(page, { gutenberg: 'fake-rapidapi-key' });
+    await preloadGutenbergCache(page, {
+      cursor: 4,
+      lastFetchedAt: Date.now(),
+      payload: CACHED_BOOKS,
+    });
+
+    await page.goto('/');
+    await page.waitForFunction(() => '__appTestHooks' in window);
+
+    await expect(
+      page.getByRole('button', { name: 'Open Cached Gutenberg Pick 1' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Open Next Gutenberg Pick 1' }),
+    ).toBeHidden();
+    await page.waitForTimeout(250);
+    expect(offsets).toEqual([]);
+  });
+
+  test('panel fetches the next 4 books when cached launch data is 24h old', async ({
+    page,
+  }) => {
+    const offsets: number[] = [];
+    await routeGutenbergBooks(page, NEXT_FAKE_BOOKS_RESPONSE, offsets);
+    await preloadSecrets(page, { gutenberg: 'fake-rapidapi-key' });
+    await preloadGutenbergCache(page, {
+      cursor: 4,
+      lastFetchedAt: Date.now() - FRESHNESS_TTL_MS,
+      payload: CACHED_BOOKS,
+    });
+
+    await page.goto('/');
+    await page.waitForFunction(() => '__appTestHooks' in window);
+
+    await expect(
+      page.getByRole('button', { name: 'Open Next Gutenberg Pick 1' }),
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(
+      page.getByRole('button', { name: 'Open Cached Gutenberg Pick 1' }),
+    ).toBeHidden();
+    expect(offsets).toEqual([4]);
+  });
+
+  test('panel refreshes automatically when a fresh cached set crosses 24h while open', async ({
+    page,
+  }) => {
+    const now = 1_700_000_000_000;
+    const offsets: number[] = [];
+    await page.clock.install({ time: now });
+    await routeGutenbergBooks(page, NEXT_FAKE_BOOKS_RESPONSE, offsets);
+    await preloadSecrets(page, { gutenberg: 'fake-rapidapi-key' });
+    await preloadGutenbergCache(page, {
+      cursor: 8,
+      lastFetchedAt: now - FRESHNESS_TTL_MS + 1_000,
+      payload: CACHED_BOOKS,
+    });
+
+    await page.goto('/');
+    await page.waitForFunction(() => '__appTestHooks' in window);
+
+    await expect(
+      page.getByRole('button', { name: 'Open Cached Gutenberg Pick 1' }),
+    ).toBeVisible();
+    expect(offsets).toEqual([]);
+
+    await page.clock.runFor(1_100);
+
+    await expect(
+      page.getByRole('button', { name: 'Open Next Gutenberg Pick 1' }),
+    ).toBeVisible({ timeout: 10_000 });
+    expect(offsets).toEqual([8]);
   });
 
   test('panel renders stale cached books when fetch fails while online', async ({ page }) => {
