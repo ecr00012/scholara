@@ -17,10 +17,10 @@ interface Props {
   onClose: () => void;
 }
 
-function formatIssued(issued: string | null): string {
-  if (!issued) return '—';
+function formatIssued(issued: string | null): string | null {
+  if (!issued) return null;
   const d = new Date(issued);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return null;
   return d.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
@@ -30,14 +30,28 @@ function formatIssued(issued: string | null): string {
 
 function Pill({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex rounded-full border border-stone-200 px-2 py-0.5 text-xs text-ink">
+    <span className="inline-block rounded-full border border-accent-amber/30 bg-accent-amber/5 px-3 py-1 text-xs leading-snug text-ink">
       {children}
     </span>
   );
 }
 
+function MetaRow({ label, value }: { label: string; value: string | null }) {
+  if (!value) return null;
+  return (
+    <div className="flex items-baseline gap-3 text-sm">
+      <span className="w-24 shrink-0 text-ink-muted">{label}</span>
+      <span className="text-ink/40">·</span>
+      <span className="text-ink">{value}</span>
+    </div>
+  );
+}
+
 export function DetailModal({ book, onClose }: Props) {
   const insertBook = useAppStore((s) => s.insertBook);
+  const runMetadataExtractionPass = useAppStore(
+    (s) => s.runMetadataExtractionPass,
+  );
   const [adding, setAdding] = useState(false);
   const [imgError, setImgError] = useState(false);
 
@@ -55,17 +69,12 @@ export function DetailModal({ book, onClose }: Props) {
     setAdding(true);
     try {
       const result = await downloadGutenbergEpub(book.id);
-      const inserted = await insertBook({
+      await insertBook({
         title: book.title,
         file_path: result.storedPath,
         file_type: 'epub',
       });
-      if (primaryAuthor) {
-        await useAppStore.getState().updateBookMetadata(inserted.id, {
-          title: inserted.title,
-          author: primaryAuthor,
-        });
-      }
+      await runMetadataExtractionPass();
       toast.success(`Added "${book.title}" to your library.`);
       setTimeout(onClose, 600);
     } catch (err) {
@@ -78,45 +87,42 @@ export function DetailModal({ book, onClose }: Props) {
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="h-[75vh] w-[75vw] max-w-[1100px] overflow-hidden border border-accent-amber/40 bg-cream p-0 text-ink ring-0">
+      <DialogContent className="h-[80vh] w-[92vw] max-w-[92vw] sm:max-w-[1600px] overflow-hidden border border-accent-amber/40 bg-cream p-0 text-ink ring-0">
         <DialogTitle className="sr-only">{book.title}</DialogTitle>
         <DialogDescription className="sr-only">
           Book details for {book.title} by {author}
         </DialogDescription>
-        <div className="grid h-full grid-cols-[40%_60%]">
-          <div className="flex items-center justify-center bg-stone-100 p-8">
+        <div className="grid h-full grid-cols-[45%_55%] grid-rows-1">
+          <div className="grid h-full min-h-0 place-items-center overflow-hidden border-r border-accent-amber/30 p-4">
             {!imgError && book.cover_image ? (
               <img
                 src={book.cover_image}
                 alt=""
-                className="max-h-full max-w-full object-contain"
+                className="block h-3/4 w-auto max-w-[75%] rounded-md object-contain shadow-[0_8px_24px_-12px_rgba(180,120,40,0.35)] ring-1 ring-accent-amber/20"
                 onError={() => setImgError(true)}
               />
             ) : (
-              <div className="aspect-[2/3] max-h-full w-full max-w-[18rem]">
+              <div className="aspect-[2/3] h-3/4 max-h-[75%] overflow-hidden rounded-md shadow-[0_8px_24px_-12px_rgba(180,120,40,0.35)] ring-1 ring-accent-amber/20">
                 <GeneratedCover title={book.title} author={primaryAuthor} />
               </div>
             )}
           </div>
-          <div className="flex flex-col gap-4 overflow-y-auto p-8">
-            <h2 className="font-serif text-3xl text-ink">{book.title}</h2>
-            <p className="text-base text-ink-muted">{author}</p>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-              <dt className="text-ink-muted">Released</dt>
-              <dd>{formatIssued(book.issued)}</dd>
-              <dt className="text-ink-muted">Publisher</dt>
-              <dd>Project Gutenberg</dd>
-              {book.reading_ease_score && (
-                <>
-                  <dt className="text-ink-muted">Reading ease</dt>
-                  <dd>{book.reading_ease_score}</dd>
-                </>
-              )}
-              <dt className="text-ink-muted">Downloads</dt>
-              <dd>{book.download_count.toLocaleString()}</dd>
-            </dl>
+          <div className="flex h-full min-h-0 min-w-0 flex-col gap-5 overflow-y-auto p-8">
+            <div className="border-b border-accent-amber/30 pb-4">
+              <h2 className="font-serif text-3xl text-ink">{book.title}</h2>
+              <p className="mt-1 text-base italic text-ink-muted">{author}</p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <MetaRow label="Released" value={formatIssued(book.issued)} />
+              <MetaRow label="Publisher" value="Project Gutenberg" />
+              <MetaRow label="Reading ease" value={book.reading_ease_score} />
+              <MetaRow
+                label="Downloads"
+                value={book.download_count.toLocaleString()}
+              />
+            </div>
             {book.subjects.length > 0 && (
-              <div>
+              <div className="border-t border-accent-amber/20 pt-4">
                 <h3 className="mb-2 text-xs uppercase tracking-wider text-ink-muted">
                   Subjects
                 </h3>
@@ -128,7 +134,7 @@ export function DetailModal({ book, onClose }: Props) {
               </div>
             )}
             {book.bookshelves.length > 0 && (
-              <div>
+              <div className="border-t border-accent-amber/20 pt-4">
                 <h3 className="mb-2 text-xs uppercase tracking-wider text-ink-muted">
                   Bookshelves
                 </h3>
@@ -139,9 +145,12 @@ export function DetailModal({ book, onClose }: Props) {
                 </div>
               </div>
             )}
-            <div className="flex-1" />
-            <div className="flex justify-end">
-              <Button onClick={handleAdd} disabled={adding}>
+            <div className="mt-auto flex justify-end border-t border-accent-amber/20 pt-4">
+              <Button
+                onClick={handleAdd}
+                disabled={adding}
+                className="h-11 px-6 text-base"
+              >
                 {adding ? 'Adding…' : 'Add to library'}
               </Button>
             </div>

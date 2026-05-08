@@ -30,8 +30,8 @@ export async function extractEpubMetadata(
       const buf = await blob.arrayBuffer();
       coverPath = await saveCoverBytes(bookId, buf, ext);
     }
-  } catch {
-    // Missing/broken cover is common — accepted.
+  } catch (err) {
+    console.warn(`[epubExtract] book ${bookId} cover extraction failed:`, err);
   }
 
   return {

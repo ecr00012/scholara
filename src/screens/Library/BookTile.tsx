@@ -25,7 +25,7 @@ export function BookTile({ book, onEdit, onDelete }: Props) {
       {/* Main clickable area */}
       <button
         type="button"
-        className="relative aspect-[2/3] w-full overflow-hidden rounded-md transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-accent-gold"
+        className="relative aspect-[2/3] w-full overflow-hidden rounded-md transition hover:-translate-y-0.5 shadow-md focus:outline-none focus:ring-2 focus:ring-accent-gold"
         onClick={() => {
           void openBook(book.id);
         }}

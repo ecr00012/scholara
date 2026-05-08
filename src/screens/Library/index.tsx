@@ -9,7 +9,6 @@ import { Header } from './Header';
 import { ApiKeyBanner } from './ApiKeyBanner';
 import { BookGrid } from './BookGrid';
 import { GutenbergPanel } from './Gutenberg';
-import { ScrollStripPlaceholder } from './ScrollStripPlaceholder';
 import { EditMetadataModal } from './EditMetadataModal';
 import { DeleteBookDialog } from './DeleteBookDialog';
 import { Fireplace } from './Fireplace/Fireplace';
