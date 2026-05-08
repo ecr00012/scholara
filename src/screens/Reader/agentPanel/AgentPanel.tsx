@@ -6,7 +6,6 @@ import { useAppStore } from '../../../store';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AiChatTab } from './AiChatTab';
 import { DictionaryTab } from './DictionaryTab';
-import { HighlightsTab } from './HighlightsTab';
 import { NotesTab } from './NotesTab';
 
 interface Props {
@@ -20,7 +19,7 @@ export function AgentPanel({ book }: Props) {
   const scopeButtonRef = useRef<HTMLButtonElement | null>(null);
   const scopePanelRef = useRef<HTMLDivElement | null>(null);
   const navItems = useAppStore((state) => state.readerNavItems);
-  const showScope = book.file_type === 'epub' && (tab === 'notes' || tab === 'highlights');
+  const showScope = book.file_type === 'epub' && tab === 'notes';
   const selectedScope = useMemo(
     () => navItems.find((item) => item.id === selectedScopeId) ?? null,
     [navItems, selectedScopeId],
@@ -107,10 +106,9 @@ export function AgentPanel({ book }: Props) {
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex h-full flex-col">
       <div className="flex h-14 items-center border-b border-stone-200 px-2">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="chat">AI Chat</TabsTrigger>
           <TabsTrigger value="notes">Notes</TabsTrigger>
-          <TabsTrigger value="highlights">Highlights</TabsTrigger>
           <TabsTrigger value="dictionary">Dictionary</TabsTrigger>
         </TabsList>
       </div>
@@ -121,11 +119,6 @@ export function AgentPanel({ book }: Props) {
       <TabsContent value="notes" className="flex-1 overflow-hidden">
         <ScopedPanelContent showScope={showScope} scopeLabel={scopeLabel}>
           <NotesTab book={book} scope={showScope ? selectedScope : null} />
-        </ScopedPanelContent>
-      </TabsContent>
-      <TabsContent value="highlights" className="flex-1 overflow-hidden">
-        <ScopedPanelContent showScope={showScope} scopeLabel={scopeLabel}>
-          <HighlightsTab book={book} scope={showScope ? selectedScope : null} />
         </ScopedPanelContent>
       </TabsContent>
       <TabsContent value="dictionary" className="flex-1 overflow-y-auto p-4">

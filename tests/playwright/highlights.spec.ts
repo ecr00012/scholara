@@ -36,7 +36,7 @@ test('range selection outside notes mode saves a quote-only highlight', async ({
       },
     ]);
 
-  await page.getByRole('tab', { name: 'Highlights' }).click();
+  await page.getByRole('tab', { name: 'Notes' }).click();
   await expect(page.getByText('A highlighted passage')).toBeVisible();
 });
 
