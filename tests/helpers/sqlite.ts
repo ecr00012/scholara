@@ -9,6 +9,7 @@ const MIGRATIONS = [
   '0002_phase2.sql',
   '0003_vocab_unique.sql',
   '0004_gutenberg.sql',
+  '0005_ai_chat.sql',
 ].map((f) => path.resolve(__dirname, '../../src-tauri/migrations', f));
 
 /**
