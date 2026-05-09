@@ -36,6 +36,12 @@ pub fn run() {
             sql: include_str!("../migrations/0004_gutenberg.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 5,
+            description: "ai chat: threads, messages, chunks, preferences, profile",
+            sql: include_str!("../migrations/0005_ai_chat.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
