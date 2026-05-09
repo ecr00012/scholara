@@ -10,3 +10,14 @@ export function fnv1a32(input: string): number {
   }
   return hash >>> 0;
 }
+
+/**
+ * SHA-256 over raw bytes, returned as a lowercase hex string. Used to detect
+ * book content changes for re-indexing.
+ */
+export async function hashBytes(bytes: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
