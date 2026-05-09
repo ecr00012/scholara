@@ -3,6 +3,10 @@ import { Button } from '@/components/ui/button';
 import { useAppStore } from '../../store';
 import { ApiKeyForm } from './ApiKeyForm';
 import { DataLocationPanel } from './DataLocationPanel';
+import { ModelPicker } from './ModelPicker';
+import { PreferencesManager } from './PreferencesManager';
+import { ReaderProfileViewer } from './ReaderProfileViewer';
+import { ReembedAllButton } from './ReembedAllButton';
 import { SecretDiagnosticPanel } from './SecretDiagnosticPanel';
 
 export function SettingsScreen() {
@@ -39,6 +43,14 @@ export function SettingsScreen() {
         helpHref="https://rapidapi.com/help-lQ_hVT8W5/api/project-gutenberg-free-books-api1"
         helpLabel="Get a key on RapidAPI →"
       />
+      <hr className="border-stone-200" />
+      <ModelPicker />
+      <hr className="border-stone-200" />
+      <PreferencesManager />
+      <hr className="border-stone-200" />
+      <ReaderProfileViewer />
+      <hr className="border-stone-200" />
+      <ReembedAllButton />
       {import.meta.env.DEV && (
         <>
           <hr className="border-stone-200" />
