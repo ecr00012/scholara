@@ -10,6 +10,12 @@ const isE2E = process.env.VITE_E2E === '1';
 export default defineConfig(async () => ({
   plugins: [react()],
 
+  // transformers.js ships an onnxruntime-web worker chunk that breaks esbuild's
+  // pre-bundling; opt out so Vite serves it as-is.
+  optimizeDeps: {
+    exclude: ['@xenova/transformers'],
+  },
+
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
