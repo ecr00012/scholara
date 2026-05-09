@@ -55,3 +55,68 @@ export interface SqlExecutor {
   ): Promise<{ lastInsertId: number; rowsAffected: number }>;
   select<T = unknown>(sql: string, params?: unknown[]): Promise<T[]>;
 }
+
+export type ThreadSpoilerMode = 0 | 1;
+
+export interface ThreadRow {
+  id: number;
+  book_id: number;
+  title: string | null;
+  spoiler_mode: ThreadSpoilerMode;
+  model: string;
+  last_active_at: string;
+  created_at: string;
+}
+
+export type MessageRole = 'user' | 'assistant';
+
+export interface MessageRow {
+  id: number;
+  thread_id: number;
+  role: MessageRole;
+  /** JSON-encoded array of Anthropic content blocks. */
+  content: string;
+  position_at_send: string | null;
+  created_at: string;
+}
+
+export interface BookChunkRow {
+  id: number;
+  book_id: number;
+  ordinal: number;
+  position_marker: string;
+  text: string;
+  /** Float32 little-endian bytes; length = 384 * 4 = 1536. */
+  embedding: Uint8Array;
+  created_at: string;
+}
+
+export type IndexStatus = 'pending' | 'indexing' | 'ready' | 'failed';
+
+export interface BookIndexStateRow {
+  book_id: number;
+  status: IndexStatus;
+  chunk_count: number | null;
+  embedder_model: string | null;
+  content_hash: string | null;
+  error: string | null;
+  updated_at: string;
+}
+
+export type PreferenceScope = 'global' | 'book';
+
+export interface PreferenceRow {
+  id: number;
+  scope: PreferenceScope;
+  book_id: number | null;
+  text: string;
+  created_at: string;
+}
+
+export interface ReaderProfileRow {
+  /** 'global' or 'book:<id>'. */
+  scope: string;
+  summary: string;
+  turn_count: number;
+  updated_at: string;
+}
