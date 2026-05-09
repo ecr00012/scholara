@@ -114,7 +114,7 @@ export function AgentPanel({ book }: Props) {
       </div>
 
       <TabsContent value="chat" className="flex-1 overflow-y-auto p-4">
-        <AiChatTab />
+        <AiChatTab book={book} />
       </TabsContent>
       <TabsContent value="notes" className="flex-1 overflow-hidden">
         <ScopedPanelContent showScope={showScope} scopeLabel={scopeLabel}>
