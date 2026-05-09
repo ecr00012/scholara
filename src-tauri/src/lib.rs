@@ -1,5 +1,6 @@
 mod commands;
 
+use commands::anthropic::{chat_oneshot, chat_stream};
 use commands::books::{
     app_data_dir_path, copy_uploaded_file, delete_book_files, read_book_bytes,
     reveal_in_file_manager, save_cover_bytes,
@@ -65,6 +66,8 @@ pub fn run() {
             diagnose_secret,
             download_gutenberg_epub,
             lookup_wordnet,
+            chat_stream,
+            chat_oneshot,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

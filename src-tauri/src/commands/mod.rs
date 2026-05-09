@@ -1,3 +1,4 @@
+pub mod anthropic;
 pub mod books;
 pub mod gutenberg;
 pub mod secrets;

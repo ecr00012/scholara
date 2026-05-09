@@ -28,5 +28,8 @@ keyring = { version = "3", features = ["apple-native", "windows-native"] }
 
 uuid                = { version = "1", features = ["v4"] }
 rusqlite            = { version = "0.32", features = ["bundled"] }
-reqwest             = { version = "0.12", features = ["rustls-tls", "stream"], default-features = false }
+reqwest             = { version = "0.12", features = ["rustls-tls", "stream", "json"], default-features = false }
 tokio               = { version = "1", features = ["fs", "io-util"] }
+eventsource-stream  = "0.2"
+futures-util        = "0.3"
+bytes               = "1"
