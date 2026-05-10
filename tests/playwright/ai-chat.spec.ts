@@ -38,7 +38,7 @@ test.beforeEach(async ({ page }) => {
         __SCHOLARA_CHAT_STREAM__?: { textChunks?: string[]; delayMs?: number };
       }
     ).__SCHOLARA_CHAT_STREAM__ = {
-      textChunks: ['Hello from the ', 'mocked Anthropic ', 'stream.'],
+      textChunks: ['Hello from the ', 'mocked OpenRouter ', 'stream.'],
       delayMs: 0,
     };
 
@@ -96,11 +96,42 @@ test('AI Chat tab streams a mocked assistant turn end-to-end', async ({ page }) 
   // returns to its enabled (send) state. The assertion below also verifies
   // that the streaming text is actually rendered in the message list.
   await expect(
-    page.getByText('Hello from the mocked Anthropic stream.'),
+    page.getByText('Hello from the mocked OpenRouter stream.'),
   ).toBeVisible({ timeout: 5_000 });
 
   // After streaming finishes, the Send button replaces the Cancel/Stop one.
   await expect(page.getByRole('button', { name: 'Send' })).toBeVisible({
+    timeout: 5_000,
+  });
+});
+
+test('Settings model picker shows free default and persists across reload', async ({ page }) => {
+  await page.getByRole('button', { name: 'Settings' }).click();
+
+  const select = page.getByRole('combobox').first();
+  await expect(select).toBeVisible({ timeout: 5_000 });
+
+  // Default is the first MODELS entry, which is a free Llama tier; the label
+  // must include "(free)" to match the curated model list.
+  const initialValue = await select.inputValue();
+  expect(initialValue).toContain(':free');
+
+  const selected = await page
+    .locator('option', { hasText: '(free)' })
+    .first()
+    .innerText();
+  expect(selected).toMatch(/\(free\)/);
+
+  // Switch to a different free model and verify it persists across reload.
+  await select.selectOption('openai/gpt-oss-120b:free');
+  await expect(select).toHaveValue('openai/gpt-oss-120b:free');
+
+  await page.reload();
+  await page.waitForFunction(() => '__appTestHooks' in window);
+  await page.getByRole('button', { name: 'Settings' }).click();
+
+  const reloadedSelect = page.getByRole('combobox').first();
+  await expect(reloadedSelect).toHaveValue('openai/gpt-oss-120b:free', {
     timeout: 5_000,
   });
 });

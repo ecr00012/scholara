@@ -54,7 +54,7 @@ interface ThreadRow {
 interface MessageRow {
   id: number;
   thread_id: number;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'tool';
   content: string;
   position_at_send: string | null;
   created_at: string;
@@ -341,9 +341,12 @@ export default class DatabaseMock {
 
     // ─── messages ───────────────────────────────────────────────────────────
     if (normalized.startsWith('insert into messages')) {
+      // The production INSERT writes a literal `migrated_v6 = 1` so only the
+      // first 4 placeholders carry user data: thread_id, role, content (an
+      // OpenAI-shape JSON payload — see src/db/messages.ts), position_at_send.
       const [threadId, role, content, positionAtSend] = params as [
         number,
-        'user' | 'assistant',
+        'user' | 'assistant' | 'tool',
         string,
         string | null,
       ];

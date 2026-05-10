@@ -10,7 +10,7 @@ interface DragDropPayload {
 }
 
 interface ChatStreamScript {
-  /** Plain-text chunks emitted as text_delta events, in order. */
+  /** Plain-text chunks emitted as OpenAI-shape `delta.content` events, in order. */
   textChunks?: string[];
   /** Optional error message; if set, channel emits a single 'error' event. */
   error?: string;
@@ -135,36 +135,19 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         channel.emit({ kind: 'error', message: script.error });
         throw new Error(script.error);
       }
-      const chunks = script.textChunks ?? ['Hello from the mocked Anthropic stream.'];
+      const chunks = script.textChunks ?? ['Hello from the mocked OpenRouter stream.'];
       const delay = script.delayMs ?? 0;
-      // index 0 / text block start
-      channel.emit({
-        kind: 'event',
-        event: 'message',
-        data: {
-          type: 'content_block_start',
-          index: 0,
-          content_block: { type: 'text' },
-        },
-      });
+
       const emitChunk = async (i: number) => {
         if (i >= chunks.length) {
-          channel.emit({
-            kind: 'event',
-            event: 'message',
-            data: { type: 'content_block_stop', index: 0 },
-          });
           channel.emit({ kind: 'done' });
           return;
         }
+        // OpenAI-shape delta: { choices: [{ delta: { content } }] }
         channel.emit({
           kind: 'event',
           event: 'message',
-          data: {
-            type: 'content_block_delta',
-            index: 0,
-            delta: { type: 'text_delta', text: chunks[i] },
-          },
+          data: { choices: [{ delta: { content: chunks[i] } }] },
         });
         if (delay > 0) {
           await new Promise((r) => setTimeout(r, delay));
@@ -182,7 +165,7 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         throw new Error(script.error);
       }
       return {
-        content: [{ type: 'text', text: script.text ?? '' }],
+        choices: [{ message: { role: 'assistant', content: script.text ?? '' } }],
       } as T;
     }
     default:
