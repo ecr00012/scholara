@@ -145,3 +145,53 @@ test('Settings model picker shows free default and persists across reload', asyn
     timeout: 5_000,
   });
 });
+
+test('Reader mode streams AI response in overlay and hands off to agent panel', async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    (
+      window as Window & {
+        __SCHOLARA_CHAT_STREAM__?: { textChunks?: string[]; delayMs?: number };
+      }
+    ).__SCHOLARA_CHAT_STREAM__ = {
+      textChunks: ['Reader-mode ', 'streaming ', 'response.'],
+      delayMs: 250,
+    };
+  });
+
+  const seededBook = await page.evaluate(async () => {
+    const book = await window.__appTestHooks.seedBook({
+      title: 'Reader EPUB',
+      file_path: '/mock/sample.epub',
+      file_type: 'epub',
+    });
+    await window.__appTestHooks.seedChatIndex({
+      book_id: book.id,
+      chunks: ['Stub chunk one.', 'Stub chunk two.'],
+    });
+    return book;
+  });
+  expect(seededBook.id).toBeGreaterThan(0);
+
+  await page.getByRole('button', { name: 'Open Reader EPUB' }).click();
+  await expect(page.locator('iframe').first()).toBeVisible({ timeout: 10_000 });
+
+  await page.getByRole('button', { name: 'Full reader display' }).click();
+
+  await page.getByRole('button', { name: 'Ask Scholara' }).click();
+  const input = page.getByPlaceholder('Ask anything…');
+  await input.fill('What is this about?');
+  await input.press('Enter');
+
+  await expect(page.getByText(/Reader-mode|Thinking\.\.\./)).toBeVisible({
+    timeout: 5_000,
+  });
+
+  await page.getByRole('button', { name: 'Agent display' }).click();
+
+  await expect(page.getByText('Reader-mode streaming response.')).toBeVisible({
+    timeout: 8_000,
+  });
+  await expect(page.getByText('What is this about?')).toBeVisible();
+});
