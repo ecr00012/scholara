@@ -13,14 +13,15 @@ import { getProfile, bookScopeKey } from '../../../../db/readerProfile';
 import { useAppStore } from '../../../../store';
 import type { AgentSessionState, UiMessage } from './types';
 import type { ChatMessage } from '../../../../agent/types';
-import { DEFAULT_MODEL_ID } from '../../../../agent/models';
+import { DEFAULT_MODEL_ID, isKnownModel } from '../../../../agent/models';
 import { deserializePosition } from '../../../../lib/positionShape';
 import { buildToolContext } from './toolContext';
 
 const DEFAULT_MODEL_KEY = 'scholara_default_model';
 
 function readDefaultModel(): string {
-  return localStorage.getItem(DEFAULT_MODEL_KEY) || DEFAULT_MODEL_ID;
+  const stored = localStorage.getItem(DEFAULT_MODEL_KEY);
+  return stored && isKnownModel(stored) ? stored : DEFAULT_MODEL_ID;
 }
 
 function rowToUi(r: MessageRow): UiMessage {

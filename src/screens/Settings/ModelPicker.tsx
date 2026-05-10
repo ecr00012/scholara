@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { MODELS, DEFAULT_MODEL_ID } from '../../agent/models';
+import { MODELS, DEFAULT_MODEL_ID, isKnownModel } from '../../agent/models';
 
 const KEY = 'scholara_default_model';
 
 export function ModelPicker() {
-  const [model, setModel] = useState<string>(
-    () => localStorage.getItem(KEY) || DEFAULT_MODEL_ID,
-  );
+  const [model, setModel] = useState<string>(() => {
+    const stored = localStorage.getItem(KEY);
+    return stored && isKnownModel(stored) ? stored : DEFAULT_MODEL_ID;
+  });
 
   useEffect(() => {
     localStorage.setItem(KEY, model);
