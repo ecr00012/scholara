@@ -9,8 +9,35 @@ interface DragDropPayload {
   paths: string[];
 }
 
+interface ChatStreamScript {
+  /** Plain-text chunks emitted as text_delta events, in order. */
+  textChunks?: string[];
+  /** Optional error message; if set, channel emits a single 'error' event. */
+  error?: string;
+  /** Per-chunk delay in ms. Defaults to 0 (synchronous-ish microtasks). */
+  delayMs?: number;
+}
+
+interface ChatOneshotScript {
+  text?: string;
+  error?: string;
+}
+
 const dragDropListeners = new Set<ListenCallback<DragDropPayload>>();
 const savedSecrets = getSecrets();
+
+/**
+ * Lightweight stand-in for `Channel<T>` from `@tauri-apps/api/core`.
+ * Real Tauri Channel: an opaque object that can be passed to invoke() and
+ * later receives messages via `.onmessage`. For tests we only need the
+ * `.onmessage` setter — the `chat_stream` mock writes events to it directly.
+ */
+export class Channel<T> {
+  onmessage: ((msg: T) => void) | null = null;
+  emit(msg: T): void {
+    this.onmessage?.(msg);
+  }
+}
 
 export async function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
   const fixtures = getFixtures();
@@ -98,9 +125,88 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         file_type: 'epub',
       } as T;
     }
+    case 'chat_stream': {
+      const channel = args.onEvent as Channel<ChatStreamEvent> | undefined;
+      const script = getChatStreamScript();
+      if (!channel) {
+        throw new Error('chat_stream mock invoked without onEvent channel');
+      }
+      if (script.error) {
+        channel.emit({ kind: 'error', message: script.error });
+        throw new Error(script.error);
+      }
+      const chunks = script.textChunks ?? ['Hello from the mocked Anthropic stream.'];
+      const delay = script.delayMs ?? 0;
+      // index 0 / text block start
+      channel.emit({
+        kind: 'event',
+        event: 'message',
+        data: {
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'text' },
+        },
+      });
+      const emitChunk = async (i: number) => {
+        if (i >= chunks.length) {
+          channel.emit({
+            kind: 'event',
+            event: 'message',
+            data: { type: 'content_block_stop', index: 0 },
+          });
+          channel.emit({ kind: 'done' });
+          return;
+        }
+        channel.emit({
+          kind: 'event',
+          event: 'message',
+          data: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'text_delta', text: chunks[i] },
+          },
+        });
+        if (delay > 0) {
+          await new Promise((r) => setTimeout(r, delay));
+        }
+        await emitChunk(i + 1);
+      };
+      // Fire-and-forget; the real `chat_stream` invoke resolves only after
+      // the Rust side finishes streaming, so we mirror that by awaiting.
+      await emitChunk(0);
+      return undefined as T;
+    }
+    case 'chat_oneshot': {
+      const script = getChatOneshotScript();
+      if (script.error) {
+        throw new Error(script.error);
+      }
+      return {
+        content: [{ type: 'text', text: script.text ?? '' }],
+      } as T;
+    }
     default:
       throw new Error(`Unhandled mock IPC command: ${cmd}`);
   }
+}
+
+type ChatStreamEvent =
+  | { kind: 'event'; event: string; data: unknown }
+  | { kind: 'error'; message: string }
+  | { kind: 'done' };
+
+function getChatStreamScript(): ChatStreamScript {
+  const target = globalThis as typeof globalThis & {
+    __SCHOLARA_CHAT_STREAM__?: ChatStreamScript;
+  };
+  return target.__SCHOLARA_CHAT_STREAM__ ?? {};
+}
+
+function getChatOneshotScript(): ChatOneshotScript {
+  const target = globalThis as typeof globalThis & {
+    __SCHOLARA_CHAT_ONESHOT__?: ChatOneshotScript;
+  };
+  return target.__SCHOLARA_CHAT_ONESHOT__ ?? { text: '' };
 }
 
 export function convertFileSrc(path: string): string {

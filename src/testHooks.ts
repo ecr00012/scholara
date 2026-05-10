@@ -3,6 +3,7 @@ import * as booksDb from './db/books';
 import * as notesDb from './db/notes';
 import * as vocabDb from './db/vocabulary';
 import * as gutenbergPanelDb from './db/gutenbergPanel';
+import { upsertIndexState } from './db/bookIndexState';
 import { useAppStore } from './store';
 import type { Book, FileType } from './db/types';
 import type { GutenbergBook } from './lib/gutenbergApi';
@@ -21,6 +22,14 @@ interface SeedNoteInput {
   quote_text: string | null;
 }
 
+interface SeedChatIndexInput {
+  book_id: number;
+  /** Plain-text chunks to insert as `book_chunks` rows. Defaults to a small stub set. */
+  chunks?: string[];
+  /** position_marker for each chunk; defaults to "1", "2", ... */
+  positionMarkers?: string[];
+}
+
 interface AppTestHooks {
   seedBook(input: SeedBookInput): Promise<Book>;
   seedNote(input: SeedNoteInput): Promise<number>;
@@ -33,6 +42,15 @@ interface AppTestHooks {
   getCurrentPosition(): string | null;
   listNotes(bookId: number): Promise<Awaited<ReturnType<typeof notesDb.listNotesForBook>>>;
   listVocabulary(bookId?: number): Promise<Awaited<ReturnType<typeof vocabDb.listAllVocabulary>>>;
+  /**
+   * Pre-seed `book_index_state` to 'ready' and insert stub `book_chunks` rows
+   * so the AI Chat tab opens directly into the chat UI without triggering
+   * the real (transformers.js + extractText) indexing pipeline during E2E.
+   * Embeddings are stored as zero-filled 384-dim vectors — fine because
+   * Playwright tests never hit the real RAG search path; the chat_stream
+   * mock short-circuits the LLM call.
+   */
+  seedChatIndex(input: SeedChatIndexInput): Promise<void>;
 }
 
 export function installTestHooks(): void {
@@ -96,6 +114,36 @@ export function installTestHooks(): void {
         return vocabDb.listVocabularyForBook(db, bookId);
       }
       return vocabDb.listAllVocabulary(db);
+    },
+
+    async seedChatIndex(input) {
+      const db = await getDb();
+      const chunks = input.chunks ?? [
+        'Stub chunk one.',
+        'Stub chunk two.',
+        'Stub chunk three.',
+      ];
+      const markers =
+        input.positionMarkers ?? chunks.map((_, i) => String(i + 1));
+      // Clear any previous chunks for this book.
+      await db.execute(`DELETE FROM book_chunks WHERE book_id = ?`, [input.book_id]);
+      // Insert stub chunks with zero-filled 384-dim embeddings (1536 bytes each).
+      const zeroBytes = new Uint8Array(384 * 4);
+      for (let i = 0; i < chunks.length; i++) {
+        await db.execute(
+          `INSERT INTO book_chunks (book_id, ordinal, position_marker, text, embedding)
+           VALUES (?, ?, ?, ?, ?)`,
+          [input.book_id, i, markers[i] ?? String(i + 1), chunks[i], zeroBytes],
+        );
+      }
+      await upsertIndexState(db, {
+        book_id: input.book_id,
+        status: 'ready',
+        chunk_count: chunks.length,
+        embedder_model: 'Xenova/all-MiniLM-L6-v2',
+        content_hash: 'e2e-stub',
+        error: null,
+      });
     },
   };
 }
