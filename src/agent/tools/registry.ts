@@ -1,34 +1,40 @@
-import type { AnthropicToolDef } from '../types';
+import type { ToolDef } from '../types';
 import { searchBook, type SearchBookParams } from './searchBook';
 import { searchNotes } from './searchNotes';
 import type { Position } from '../../lib/positionShape';
 import type { ChunkOrdinalIndex } from '../spoilerGuard';
 
-export const TOOL_DEFS: AnthropicToolDef[] = [
+export const TOOL_DEFS: ToolDef[] = [
   {
-    name: 'search_book',
-    description:
-      'Retrieve the most relevant passages from the book. Use this before quoting or asserting specific facts about the text.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        query: { type: 'string', description: 'A natural-language search query.' },
-        k: { type: 'integer', description: 'Number of passages, default 6.' },
+    type: 'function',
+    function: {
+      name: 'search_book',
+      description:
+        'Retrieve the most relevant passages from the book. Use this before quoting or asserting specific facts about the text.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'A natural-language search query.' },
+          k: { type: 'integer', description: 'Number of passages, default 6.' },
+        },
+        required: ['query'],
       },
-      required: ['query'],
     },
   },
   {
-    name: 'search_notes',
-    description:
-      "Retrieve the user's relevant notes, saved quotes, and dictionary definitions for this book.",
-    input_schema: {
-      type: 'object',
-      properties: {
-        query: { type: 'string', description: 'A natural-language search query.' },
-        k: { type: 'integer', description: 'Number of items, default 6.' },
+    type: 'function',
+    function: {
+      name: 'search_notes',
+      description:
+        "Retrieve the user's relevant notes, saved quotes, and dictionary definitions for this book.",
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'A natural-language search query.' },
+          k: { type: 'integer', description: 'Number of items, default 6.' },
+        },
+        required: ['query'],
       },
-      required: ['query'],
     },
   },
 ];

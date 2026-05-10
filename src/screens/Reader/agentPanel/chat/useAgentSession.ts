@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Book, ThreadSpoilerMode } from '../../../../db/types';
+import type { Book, ThreadSpoilerMode, MessageRow } from '../../../../db/types';
 import { getDb } from '../../../../db/client';
 import * as threadsDb from '../../../../db/threads';
 import * as messagesDb from '../../../../db/messages';
+import { serializeUser, serializeAssistant, serializeTool, rowToMessage } from '../../../../db/messages';
 import { runTurn } from '../../../../agent/loop';
 import { maybeAutoTitle } from '../../../../agent/autoTitle';
 import { maybeUpdateBookProfile, maybeUpdateGlobalProfile } from '../../../../agent/profileUpdater';
@@ -11,15 +12,28 @@ import { listPreferences } from '../../../../db/preferences';
 import { getProfile, bookScopeKey } from '../../../../db/readerProfile';
 import { useAppStore } from '../../../../store';
 import type { AgentSessionState, UiMessage } from './types';
-import type { ContentBlock, AnthropicMessage } from '../../../../agent/types';
+import type { ChatMessage } from '../../../../agent/types';
+import { DEFAULT_MODEL_ID } from '../../../../agent/models';
 import { deserializePosition } from '../../../../lib/positionShape';
 import { buildToolContext } from './toolContext';
 
 const DEFAULT_MODEL_KEY = 'scholara_default_model';
-const DEFAULT_MODEL = 'claude-haiku-4-5';
 
 function readDefaultModel(): string {
-  return localStorage.getItem(DEFAULT_MODEL_KEY) || DEFAULT_MODEL;
+  return localStorage.getItem(DEFAULT_MODEL_KEY) || DEFAULT_MODEL_ID;
+}
+
+function rowToUi(r: MessageRow): UiMessage {
+  const m = rowToMessage(r);
+  if (m.role === 'user') return { id: r.id, role: 'user', text: m.content };
+  if (m.role === 'tool') return { id: r.id, role: 'tool', tool_call_id: m.tool_call_id, text: m.content };
+  if (m.role === 'assistant') {
+    return m.tool_calls && m.tool_calls.length > 0
+      ? { id: r.id, role: 'assistant', text: m.content, tool_calls: m.tool_calls }
+      : { id: r.id, role: 'assistant', text: m.content ?? '' };
+  }
+  // system role doesn't appear in DB rows; treat as assistant with empty text.
+  return { id: r.id, role: 'assistant', text: '' };
 }
 
 export function useAgentSession(book: Book) {
@@ -34,9 +48,7 @@ export function useAgentSession(book: Book) {
     const db = await getDb();
     const thread = await threadsDb.getThread(db, threadId);
     const rows = await messagesDb.listMessagesForThread(db, threadId);
-    const messages: UiMessage[] = rows.map((r) => ({
-      id: r.id, role: r.role, content: JSON.parse(r.content) as ContentBlock[],
-    }));
+    const messages: UiMessage[] = rows.map((r) => rowToUi(r));
     setState({ thread, messages, phase: 'idle', error: null });
   }, []);
 
@@ -77,15 +89,14 @@ export function useAgentSession(book: Book) {
     abortRef.current = ctrl;
 
     // Optimistic user bubble.
-    const userBlocks: ContentBlock[] = [{ type: 'text', text }];
     setState((s) => ({
       ...s,
       phase: 'thinking',
       error: null,
       messages: [
         ...s.messages,
-        { id: -Date.now() as unknown as number, role: 'user', content: userBlocks },
-        { id: 'live', role: 'assistant', content: [{ type: 'text', text: '' }], live: true },
+        { id: -Date.now() as unknown as number, role: 'user', text },
+        { id: 'live', role: 'assistant', text: '', live: true },
       ],
     }));
 
@@ -97,7 +108,7 @@ export function useAgentSession(book: Book) {
     await messagesDb.insertMessage(db, {
       thread_id: thread.id,
       role: 'user',
-      content: JSON.stringify(userBlocks),
+      content: serializeUser(text),
       position_at_send: positionJson,
     });
     await threadsDb.touchThread(db, thread.id);
@@ -120,9 +131,9 @@ export function useAgentSession(book: Book) {
 
     const priorRows = await messagesDb.listMessagesForThread(db, thread.id);
     // Drop the just-inserted user message (we re-add it below) and convert.
-    let prior: AnthropicMessage[] = priorRows
+    let prior: ChatMessage[] = priorRows
       .slice(0, -1)
-      .map((r) => ({ role: r.role, content: JSON.parse(r.content) as ContentBlock[] }));
+      .map((r) => rowToMessage(r));
     // Spec §3.6: if persisted history exceeds 20 turns (40 messages), drop oldest
     // user/assistant pairs from what's *sent*. DB keeps everything.
     const MAX_SENT_MESSAGES = 40;
@@ -141,38 +152,48 @@ export function useAgentSession(book: Book) {
         onTextDelta: (delta) => {
           setState((s) => {
             const live = s.messages[s.messages.length - 1];
-            if (!live || !live.live) return s;
-            const block = live.content[0];
-            if (block?.type !== 'text') return s;
-            const updated: UiMessage = { ...live, content: [{ type: 'text', text: block.text + delta }] };
+            if (!live || !live.live || live.role !== 'assistant') return s;
+            const updated: UiMessage = { ...live, text: (live.text ?? '') + delta };
             return { ...s, phase: 'streaming', messages: [...s.messages.slice(0, -1), updated] };
           });
         },
         onAssistantMessage: async (msg) => {
+          if (msg.role !== 'assistant') return;
           const id = await messagesDb.insertMessage(db, {
-            thread_id: thread.id, role: 'assistant',
-            content: JSON.stringify(msg.content), position_at_send: null,
+            thread_id: thread.id,
+            role: 'assistant',
+            content: serializeAssistant(msg),
+            position_at_send: null,
           });
           setState((s) => {
             const live = s.messages[s.messages.length - 1];
-            if (!live?.live) {
-              return { ...s, messages: [...s.messages, { id, role: 'assistant', content: msg.content }] };
-            }
-            return {
-              ...s,
-              messages: [...s.messages.slice(0, -1), { id, role: 'assistant', content: msg.content }],
-            };
+            const ui: UiMessage = msg.tool_calls && msg.tool_calls.length > 0
+              ? { id, role: 'assistant', text: msg.content, tool_calls: msg.tool_calls }
+              : { id, role: 'assistant', text: msg.content ?? '' };
+            if (!live?.live) return { ...s, messages: [...s.messages, ui] };
+            return { ...s, messages: [...s.messages.slice(0, -1), ui] };
           });
         },
-        onToolResults: async (msg) => {
-          await messagesDb.insertMessage(db, {
-            thread_id: thread.id, role: 'user',
-            content: JSON.stringify(msg.content), position_at_send: null,
-          });
+        onToolResults: async (msgs) => {
+          for (const m of msgs) {
+            if (m.role !== 'tool') continue;
+            await messagesDb.insertMessage(db, {
+              thread_id: thread.id,
+              role: 'tool',
+              content: serializeTool(m),
+              position_at_send: null,
+            });
+          }
           setState((s) => ({
             ...s,
             phase: 'tool',
-            messages: [...s.messages, { id: -Date.now() as unknown as number, role: 'user', content: msg.content }, { id: 'live', role: 'assistant', content: [{ type: 'text', text: '' }], live: true }],
+            messages: [
+              ...s.messages,
+              ...msgs.map((m): UiMessage => m.role === 'tool'
+                ? { id: -Date.now() as unknown as number, role: 'tool', tool_call_id: m.tool_call_id, text: m.content }
+                : { id: -Date.now() as unknown as number, role: 'user', text: '' }),
+              { id: 'live', role: 'assistant', text: '', live: true },
+            ],
           }));
         },
       });
@@ -185,9 +206,7 @@ export function useAgentSession(book: Book) {
       void maybeAutoTitle({
         threadId: thread.id, currentTitle: state.thread?.title ?? null,
         assistantTurns, model: thread.model,
-        recentMessages: prior.slice(-4).concat({
-          role: 'user', content: [{ type: 'text', text }],
-        }),
+        recentMessages: prior.slice(-4).concat({ role: 'user', content: text }),
       });
       void maybeUpdateBookProfile({ bookId: book.id, threadId: thread.id, model: thread.model });
       void maybeUpdateGlobalProfile({ model: thread.model });
@@ -206,8 +225,9 @@ export function useAgentSession(book: Book) {
       // Persist an interrupted marker on the assistant side.
       if (message === 'aborted') {
         await messagesDb.insertMessage(db, {
-          thread_id: thread.id, role: 'assistant',
-          content: JSON.stringify([{ type: 'text', text: '[interrupted]' }]),
+          thread_id: thread.id,
+          role: 'assistant',
+          content: serializeAssistant({ role: 'assistant', content: '[interrupted]' }),
           position_at_send: null,
         });
       }

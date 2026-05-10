@@ -1,66 +1,61 @@
 // src/agent/loop.ts
-import { chatStream, extractText, extractToolUses } from './anthropic';
-import type { AnthropicMessage, ToolResultBlock } from './types';
+import { chatStream } from './openrouter';
+import type { ChatMessage } from './types';
 import { TOOL_DEFS, dispatchTool, type ToolContext } from './tools/registry';
 
 export interface RunTurnArgs {
   model: string;
+  /** System prompt body. The loop prepends a {role:'system'} message itself. */
   system: string;
-  messages: AnthropicMessage[];      // all prior messages (no new user yet)
-  userText: string;                  // the new turn
+  /** All prior messages in OpenAI shape. The new user turn is added below. */
+  messages: ChatMessage[];
+  userText: string;
   toolContext: ToolContext;
-  /** Called as text streams in (live UI updates). */
   onTextDelta: (text: string) => void;
-  /** Called whenever a fully-formed assistant message is produced (after tool execution loop iterations). */
-  onAssistantMessage: (msg: AnthropicMessage) => void;
-  /** Called whenever a tool_result message is produced. */
-  onToolResults: (msg: AnthropicMessage) => void;
+  onAssistantMessage: (msg: ChatMessage) => void;
+  /** Called whenever a batch of tool messages is produced (one per tool_call). */
+  onToolResults: (msgs: ChatMessage[]) => void;
   signal?: AbortSignal;
   maxIterations?: number;
 }
 
 export async function runTurn(args: RunTurnArgs): Promise<void> {
-  const userMsg: AnthropicMessage = {
-    role: 'user',
-    content: [{ type: 'text', text: args.userText }],
-  };
-  const messages: AnthropicMessage[] = [...args.messages, userMsg];
+  const userMsg: ChatMessage = { role: 'user', content: args.userText };
+  const sysMsg: ChatMessage = { role: 'system', content: args.system };
+  const messages: ChatMessage[] = [sysMsg, ...args.messages, userMsg];
 
   const limit = args.maxIterations ?? 8;
   for (let i = 0; i < limit; i++) {
     if (args.signal?.aborted) throw new Error('aborted');
 
     const assistant = await chatStream(
-      {
-        model: args.model,
-        system: args.system,
-        messages,
-        tools: TOOL_DEFS,
-      },
+      { model: args.model, messages, tools: TOOL_DEFS },
       args.onTextDelta,
     );
     args.onAssistantMessage(assistant);
     messages.push(assistant);
 
-    const toolUses = extractToolUses(assistant.content);
-    if (toolUses.length === 0) return;
+    const calls = assistant.role === 'assistant' ? assistant.tool_calls ?? [] : [];
+    if (calls.length === 0) return;
 
-    const toolResults: ToolResultBlock[] = await Promise.all(
-      toolUses.map(async (tu) => {
-        const out = await dispatchTool(tu.name, tu.input, args.toolContext);
+    const toolMessages: ChatMessage[] = await Promise.all(
+      calls.map(async (tc): Promise<ChatMessage> => {
+        let parsedInput: Record<string, unknown> = {};
+        try {
+          parsedInput = tc.function.arguments ? JSON.parse(tc.function.arguments) : {};
+        } catch {
+          parsedInput = {};
+        }
+        const out = await dispatchTool(tc.function.name, parsedInput, args.toolContext);
         return {
-          type: 'tool_result',
-          tool_use_id: tu.id,
-          content: out.content,
-          is_error: out.is_error,
+          role: 'tool',
+          tool_call_id: tc.id,
+          content: out.is_error ? `tool_error: ${out.content}` : out.content,
         };
       }),
     );
-    const toolMsg: AnthropicMessage = { role: 'user', content: toolResults };
-    args.onToolResults(toolMsg);
-    messages.push(toolMsg);
+    args.onToolResults(toolMessages);
+    for (const tm of toolMessages) messages.push(tm);
   }
   // If we hit the iteration cap, stop quietly — the last assistant message has already been delivered.
 }
-
-export { extractText };

@@ -1,26 +1,40 @@
-import { chatOneshot, extractText } from './anthropic';
+import { chatOneshot, messageText } from './openrouter';
+import type { ChatMessage } from './types';
 import { getDb } from '../db/client';
 import { getProfile, upsertProfile, bookScopeKey } from '../db/readerProfile';
-import { countUserMessages, countUserMessagesGlobal, listRecentUserMessagesGlobal, listMessagesForThread } from '../db/messages';
+import {
+  countUserMessages,
+  countUserMessagesGlobal,
+  listRecentUserMessagesGlobal,
+  listMessagesForThread,
+} from '../db/messages';
 
 const BOOK_TURN_INTERVAL = 6;
 const GLOBAL_TURN_INTERVAL = 12;
 const RECENT_TURNS = 8;
 
-async function summarize(model: string, prior: string | null, recentText: string): Promise<string | null> {
+async function summarize(
+  model: string,
+  prior: string | null,
+  recentText: string,
+): Promise<string | null> {
   try {
-    const sys = `Given the prior reader profile (may be empty) and these recent user messages,
+    const sys: ChatMessage = {
+      role: 'system',
+      content: `Given the prior reader profile (may be empty) and these recent user messages,
 write a concise (≤ 500 chars) updated profile describing this reader's interests,
-reading style, and preferences. Be specific, not flattering. No headers.`;
+reading style, and preferences. Be specific, not flattering. No headers.`,
+    };
+    const userMsg: ChatMessage = {
+      role: 'user',
+      content: `Prior profile:\n${prior ?? '(none)'}\n\nRecent messages:\n${recentText}`,
+    };
     const out = await chatOneshot({
       model,
-      system: sys,
-      messages: [
-        { role: 'user', content: [{ type: 'text', text: `Prior profile:\n${prior ?? '(none)'}\n\nRecent messages:\n${recentText}` }] },
-      ],
+      messages: [sys, userMsg],
       max_tokens: 250,
     });
-    return extractText(out.content).trim().slice(0, 500) || null;
+    return messageText(out.message).trim().slice(0, 500) || null;
   } catch {
     return null;
   }
@@ -68,10 +82,14 @@ export async function maybeUpdateGlobalProfile(args: { model: string }): Promise
   await upsertProfile(db, { scope: 'global', summary, turn_count: total });
 }
 
+/**
+ * The DB stores the per-row payload as JSON; for user rows that's `{"text": "..."}`.
+ * Returns the text or '' on parse failure.
+ */
 function safeText(json: string): string {
   try {
-    const blocks = JSON.parse(json) as Array<{ type: string; text?: string }>;
-    return blocks.filter((b) => b.type === 'text').map((b) => b.text ?? '').join(' ').trim();
+    const obj = JSON.parse(json) as { text?: string };
+    return typeof obj.text === 'string' ? obj.text : '';
   } catch {
     return '';
   }

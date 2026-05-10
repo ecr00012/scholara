@@ -15,7 +15,7 @@ export function MessageList({ messages }: Props) {
   return (
     <div ref={ref} className="min-h-0 flex-1 overflow-y-auto p-3">
       {messages.map((m, i) => (
-        <MessageBubble key={`${m.id}-${i}`} role={m.role} content={m.content} live={m.live} />
+        <MessageBubble key={`${m.id}-${i}`} message={m} siblings={messages} />
       ))}
     </div>
   );

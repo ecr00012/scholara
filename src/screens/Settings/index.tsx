@@ -25,13 +25,13 @@ export function SettingsScreen() {
       <h1 className="font-serif text-3xl tracking-tight text-ink">Settings</h1>
       <hr className="border-stone-200" />
       <ApiKeyForm
-        storeKey="apiKey"
-        saveAction="saveApiKey"
-        heading="Anthropic API Key"
-        description="Used by the AI study mentor. Stored in your OS keychain; never written to disk by Scholara."
-        placeholder="sk-ant-..."
-        helpHref="https://console.anthropic.com"
-        helpLabel="Get a key at console.anthropic.com →"
+        storeKey="openrouterApiKey"
+        saveAction="saveOpenrouterApiKey"
+        heading="OpenRouter API Key"
+        description="Used by the AI study mentor. Stored in your OS keychain; never written to disk by Scholara. The free default model works without billing."
+        placeholder="sk-or-v1-..."
+        helpHref="https://openrouter.ai/keys"
+        helpLabel="Get a key at openrouter.ai/keys →"
       />
       <hr className="border-stone-200" />
       <ApiKeyForm

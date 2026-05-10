@@ -68,13 +68,17 @@ export interface ThreadRow {
   created_at: string;
 }
 
-export type MessageRole = 'user' | 'assistant';
+export type MessageRole = 'user' | 'assistant' | 'tool';
 
 export interface MessageRow {
   id: number;
   thread_id: number;
   role: MessageRole;
-  /** JSON-encoded array of Anthropic content blocks. */
+  /** JSON-encoded message payload. Shape depends on role:
+   *  - 'user'      → {"text": string}
+   *  - 'assistant' → {"text": string|null, "tool_calls"?: ToolCall[]}
+   *  - 'tool'      → {"tool_call_id": string, "text": string}
+   */
   content: string;
   position_at_send: string | null;
   created_at: string;

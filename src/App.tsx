@@ -8,7 +8,7 @@ import { ReaderScreen } from './screens/Reader';
 export default function App() {
   const view = useAppStore((s) => s.view);
   const loadBooks = useAppStore((s) => s.loadBooks);
-  const loadApiKey = useAppStore((s) => s.loadApiKey);
+  const loadOpenrouterApiKey = useAppStore((s) => s.loadOpenrouterApiKey);
   const loadGutenbergApiKey = useAppStore((s) => s.loadGutenbergApiKey);
   const runMetadataExtractionPass = useAppStore(
     (s) => s.runMetadataExtractionPass,
@@ -16,10 +16,10 @@ export default function App() {
 
   useEffect(() => {
     void (async () => {
-      await Promise.all([loadApiKey(), loadGutenbergApiKey(), loadBooks()]);
+      await Promise.all([loadOpenrouterApiKey(), loadGutenbergApiKey(), loadBooks()]);
       void runMetadataExtractionPass();
     })();
-  }, [loadApiKey, loadBooks, loadGutenbergApiKey, runMetadataExtractionPass]);
+  }, [loadOpenrouterApiKey, loadBooks, loadGutenbergApiKey, runMetadataExtractionPass]);
 
   return (
     <>

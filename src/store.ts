@@ -20,7 +20,7 @@ export type AppView = 'library' | 'settings' | 'reader';
 interface AppState {
   view: AppView;
   books: Book[];
-  apiKey: string | null;
+  openrouterApiKey: string | null;
   gutenbergApiKey: string | null;
   gutenbergApiKeyError: string | null;
   apiKeyBannerDismissed: boolean;
@@ -47,8 +47,8 @@ interface AppState {
     patch: { title: string; author: string | null },
   ) => Promise<void>;
   deleteBook: (id: number) => Promise<void>;
-  loadApiKey: () => Promise<void>;
-  saveApiKey: (key: string) => Promise<void>;
+  loadOpenrouterApiKey: () => Promise<void>;
+  saveOpenrouterApiKey: (key: string) => Promise<void>;
   loadGutenbergApiKey: () => Promise<void>;
   saveGutenbergApiKey: (key: string) => Promise<void>;
   dismissApiKeyBanner: () => void;
@@ -87,7 +87,7 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   view: 'library',
   books: [],
-  apiKey: null,
+  openrouterApiKey: null,
   gutenbergApiKey: null,
   gutenbergApiKeyError: null,
   apiKeyBannerDismissed: false,
@@ -138,14 +138,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ books: get().books.filter((b) => b.id !== id) });
   },
 
-  loadApiKey: async () => {
-    const apiKey = await secretsIpc.getSecret('anthropic');
-    set({ apiKey });
+  loadOpenrouterApiKey: async () => {
+    const openrouterApiKey = await secretsIpc.getSecret('openrouter');
+    set({ openrouterApiKey });
   },
 
-  saveApiKey: async (key) => {
-    await secretsIpc.setSecret('anthropic', key);
-    set({ apiKey: key === '' ? null : key });
+  saveOpenrouterApiKey: async (key) => {
+    await secretsIpc.setSecret('openrouter', key);
+    set({ openrouterApiKey: key === '' ? null : key });
   },
 
   loadGutenbergApiKey: async () => {
