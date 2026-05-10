@@ -46,3 +46,18 @@ describe('searchNotes', () => {
     expect((listNotesForBook as ReturnType<typeof vi.fn>).mock.calls.length).toBe(2);
   });
 });
+
+import { TOOL_DEFS } from '../../../src/agent/tools/registry';
+
+describe('TOOL_DEFS schema shape', () => {
+  it('search_notes is exposed in OpenAI ToolDef shape', () => {
+    const def = TOOL_DEFS.find((d) => d.function.name === 'search_notes');
+    expect(def).toBeDefined();
+    expect(def?.type).toBe('function');
+    expect(def?.function.parameters).toMatchObject({
+      type: 'object',
+      properties: { query: { type: 'string' } },
+      required: ['query'],
+    });
+  });
+});

@@ -54,3 +54,18 @@ describe('searchBook', () => {
     expect(call[2]).toBe(1); // maxOrdinal mapped from page 5
   });
 });
+
+import { TOOL_DEFS } from '../../../src/agent/tools/registry';
+
+describe('TOOL_DEFS schema shape', () => {
+  it('search_book is exposed in OpenAI ToolDef shape', () => {
+    const def = TOOL_DEFS.find((d) => d.function.name === 'search_book');
+    expect(def).toBeDefined();
+    expect(def?.type).toBe('function');
+    expect(def?.function.parameters).toMatchObject({
+      type: 'object',
+      properties: { query: { type: 'string' } },
+      required: ['query'],
+    });
+  });
+});
