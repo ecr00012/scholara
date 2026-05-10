@@ -113,7 +113,7 @@ export function AgentPanel({ book }: Props) {
         </TabsList>
       </div>
 
-      <TabsContent value="chat" className="flex-1 overflow-y-auto p-4">
+      <TabsContent value="chat" className="flex-1 overflow-hidden">
         <AiChatTab book={book} />
       </TabsContent>
       <TabsContent value="notes" className="flex-1 overflow-hidden">

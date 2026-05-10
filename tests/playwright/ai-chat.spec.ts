@@ -82,6 +82,16 @@ test('AI Chat tab streams a mocked assistant turn end-to-end', async ({ page }) 
   const composer = page.getByPlaceholder('Ask about this book…');
   await expect(composer).toBeVisible();
 
+  const panelBox = await page.locator('aside').boundingBox();
+  const composerBarBox = await composer.locator('xpath=..').boundingBox();
+  expect(panelBox).not.toBeNull();
+  expect(composerBarBox).not.toBeNull();
+  expect(composerBarBox!.x - panelBox!.x).toBeLessThanOrEqual(2);
+  expect(panelBox!.x + panelBox!.width - (composerBarBox!.x + composerBarBox!.width))
+    .toBeLessThanOrEqual(2);
+  expect(panelBox!.y + panelBox!.height - (composerBarBox!.y + composerBarBox!.height))
+    .toBeLessThanOrEqual(2);
+
   // The empty state copy is rendered before the user sends anything.
   await expect(page.getByRole('button', { name: 'Send' })).toBeDisabled();
 
