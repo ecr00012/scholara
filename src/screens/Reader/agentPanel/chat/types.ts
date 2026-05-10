@@ -1,5 +1,4 @@
 import type { ChatMessage, ToolCall } from '../../../../agent/types';
-import type { ThreadRow } from '../../../../db/types';
 
 export type ChatPhase = 'idle' | 'thinking' | 'streaming' | 'tool';
 
@@ -13,10 +12,3 @@ export type UiMessage = {
 );
 
 export type ChatMessageForRender = ChatMessage; // re-export for prop typing if needed
-
-export interface AgentSessionState {
-  thread: ThreadRow | null;
-  messages: UiMessage[];
-  phase: ChatPhase;
-  error: string | null;
-}

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import type { Book } from '../../../../db/types';
-import { useAgentSession } from './useAgentSession';
 import { IndexingProgress } from './IndexingProgress';
 import { MessageList } from './MessageList';
 import { Composer } from './Composer';
@@ -9,13 +8,19 @@ import { HistoryPopover } from './HistoryPopover';
 import { EmptyState } from './EmptyState';
 import { getDb } from '../../../../db/client';
 import { getIndexState } from '../../../../db/bookIndexState';
+import { useAppStore } from '../../../../store';
 
 interface Props {
   book: Book;
 }
 
 export function AiChatRoot({ book }: Props) {
-  const session = useAgentSession(book);
+  const state = useAppStore((s) => s.agentSession);
+  const send = useAppStore((s) => s.sendAgentMessage);
+  const cancel = useAppStore((s) => s.cancelAgentMessage);
+  const setSpoiler = useAppStore((s) => s.setAgentSpoiler);
+  const newThread = useAppStore((s) => s.newAgentThread);
+  const loadThread = useAppStore((s) => s.loadAgentThread);
   const [indexReady, setIndexReady] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -31,8 +36,6 @@ export function AiChatRoot({ book }: Props) {
 
   if (indexReady === null) return null;
   if (!indexReady) return <IndexingProgress book={book} onReady={() => setIndexReady(true)} />;
-
-  const { state, send, cancel, setSpoiler, newThread, loadThread } = session;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
