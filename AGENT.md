@@ -12,10 +12,10 @@ Scholara is an offline-first desktop reading and study app — Google NotebookLM
 - **Styling:** shadcn/ui + Tailwind CSS. Light mode only — no dark mode.
 - **Database:** SQLite via `tauri-plugin-sql` exclusively.
 - **File system:** All FS operations go through Tauri IPC (`invoke`). No direct Node.js or browser FS access.
-- **LLM:** LangChain (TypeScript) wrapping the Anthropic API. Model: `claude-sonnet-4-20250514` only.
+- **LLM:** Direct Anthropic Messages API via the Rust `chat_stream` / `chat_oneshot` Tauri commands. Default model `claude-haiku-4-5`; user-pickable in Settings → AI Mentor. Streaming enabled.
 - **Streaming:** Every LLM response streams token-by-token.
 - **Auth:** No accounts, no authentication, no online backend.
-- **API key:** User-provided Anthropic API key stored locally (SQLite or Tauri secure store). Never hardcode.
+- **API key:** User-provided Anthropic API key stored in the OS keychain via `getSecret('anthropic')` / `setSecret('anthropic')`. The renderer never holds the raw key — all Anthropic HTTP traffic goes through Rust.
 - **Secrets:** All keychain-backed secrets go through `getSecret(name)` / `setSecret(name)`. Service is `"scholara"`; account is the `name` argument.
 - **Platform:** Cross-platform (macOS, Windows, Linux). All IPC and file paths must be cross-platform.
 - **No SSR.**
@@ -96,17 +96,18 @@ Both modes share:
 
 ### AI Agent Logic
 
-Built with LangChain (TypeScript) + claude haiku, streaming enabled.
-(switch to haiku for implementation)
+The Reader Agent (AI Chat tab) is a streaming, per-book study mentor. It runs the Anthropic Messages API directly via the Rust `chat_stream` / `chat_oneshot` Tauri commands (default model `claude-haiku-4-5`, user-selectable). Implementation details:
 
-Three tools:
-1. **RAG over read content** — passages up to user's current position.
-2. **RAG over full text** — entire book; only after spoiler evaluation clears it.
-3. **Web search** — LangChain web search tool; fallback when text can't answer the question.
+- **Embeddings:** the bundled `Xenova/all-MiniLM-L6-v2` ONNX model runs locally via transformers.js. No embedding traffic leaves the device.
+- **RAG store:** `book_chunks` (SQLite) — text + 384-dim embeddings indexed once per book on first AI Chat open. Index lifecycle is tracked in `book_index_state` (`pending` / `indexing` / `ready` / `error`).
+- **Tools exposed to the model:** `search_book` (semantic + keyword retrieval over the current book) and `search_notes` (the user's own notes/quotes for this book). Web search is deferred.
+- **Spoiler Mode:** per-thread toggle. When enabled, `search_book` is capped at the user's current reading position (PDF: page ≤ current; EPUB: spine ordinal ≤ current) — the spoiler guard filters chunks by ordinal before retrieval.
+- **Background updaters:** `autoTitle` names threads after the first assistant turn; `profileUpdater` maintains a per-book and global "reader profile" used in subsequent system prompts.
+- **Persistence:** multi-thread per book in `threads` and `messages`. The renderer never sees the API key — Rust holds it via the OS keychain.
 
-**Spoiler evaluation** (run before every response): assess question type (interpretive/factual/forward-looking?), content type (fiction = higher risk), and user intent. If spoiler risk → restrict to read content. If no risk → full-text RAG allowed. If neither strategy suffices → web search.
+System prompt always includes: current book + position, current page text, user's notes and vocabulary for this book, reader preferences, and the global + per-book reader profile.
 
-System prompt always includes: current book + position, user's notes for this book, user's vocabulary for this book.
+Reference: `docs/superpowers/specs/2026-05-08-ai-chat-design.md`.
 
 ### Settings Screen
 
