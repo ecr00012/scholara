@@ -12,10 +12,10 @@ Scholara is an offline-first desktop reading and study app — Google NotebookLM
 - **Styling:** shadcn/ui + Tailwind CSS. Light mode only — no dark mode.
 - **Database:** SQLite via `tauri-plugin-sql` exclusively.
 - **File system:** All FS operations go through Tauri IPC (`invoke`). No direct Node.js or browser FS access.
-- **LLM:** Direct Anthropic Messages API via the Rust `chat_stream` / `chat_oneshot` Tauri commands. Default model `claude-haiku-4-5`; user-pickable in Settings → AI Mentor. Streaming enabled.
+- **LLM:** OpenRouter via the Rust `chat_stream` / `chat_oneshot` Tauri commands, hitting OpenRouter's OpenAI-compatible `/v1/chat/completions` endpoint. Default model is a curated free tool-capable model (see `src/agent/models.ts`); user-selectable in Settings → AI Mentor. Streaming enabled.
 - **Streaming:** Every LLM response streams token-by-token.
 - **Auth:** No accounts, no authentication, no online backend.
-- **API key:** User-provided Anthropic API key stored in the OS keychain via `getSecret('anthropic')` / `setSecret('anthropic')`. The renderer never holds the raw key — all Anthropic HTTP traffic goes through Rust.
+- **API key:** User-provided OpenRouter API key stored in the OS keychain via `getSecret('openrouter')` / `setSecret('openrouter')`. The renderer never holds the raw key — all OpenRouter HTTP traffic goes through Rust. The legacy `anthropic_api_key` keychain entry, if present, is left untouched and unread.
 - **Secrets:** All keychain-backed secrets go through `getSecret(name)` / `setSecret(name)`. Service is `"scholara"`; account is the `name` argument.
 - **Platform:** Cross-platform (macOS, Windows, Linux). All IPC and file paths must be cross-platform.
 - **No SSR.**
@@ -101,7 +101,7 @@ Both modes share:
 
 ### AI Agent Logic
 
-The Reader Agent (AI Chat tab) is a streaming, per-book study mentor. It runs the Anthropic Messages API directly via the Rust `chat_stream` / `chat_oneshot` Tauri commands (default model `claude-haiku-4-5`, user-selectable). Implementation details:
+The Reader Agent (AI Chat tab) is a streaming, per-book study mentor. It runs OpenRouter's OpenAI-compatible Chat Completions API via the Rust `chat_stream` / `chat_oneshot` Tauri commands (default model is the first entry of `src/agent/models.ts`, user-selectable). Implementation details:
 
 - **Embeddings:** the bundled `Xenova/all-MiniLM-L6-v2` ONNX model runs locally via transformers.js. No embedding traffic leaves the device.
 - **RAG store:** `book_chunks` (SQLite) — text + 384-dim embeddings indexed once per book on first AI Chat open. Index lifecycle is tracked in `book_index_state` (`pending` / `indexing` / `ready` / `error`).
@@ -116,7 +116,7 @@ Reference: `docs/superpowers/specs/2026-05-08-ai-chat-design.md`.
 
 ### Settings Screen
 
-Accessible from Library. Allows user to enter/save their Anthropic API key and view the app's internal documents directory path.
+Accessible from Library. Allows user to enter/save their OpenRouter API key and view the app's internal documents directory path.
 
 ### Offline Behavior
 
