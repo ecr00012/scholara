@@ -1,6 +1,7 @@
 mod commands;
+mod migrate_v6;
 
-use commands::anthropic::{chat_oneshot, chat_stream};
+use commands::openrouter::{chat_oneshot, chat_stream};
 use commands::books::{
     app_data_dir_path, copy_uploaded_file, delete_book_files, read_book_bytes,
     reveal_in_file_manager, save_cover_bytes,
@@ -8,6 +9,7 @@ use commands::books::{
 use commands::gutenberg::download_gutenberg_epub;
 use commands::secrets::{diagnose_secret, get_secret, set_secret};
 use commands::wordnet::{lookup_wordnet, WordnetState};
+use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -60,6 +62,18 @@ pub fn run() {
         )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            // After tauri-plugin-sql has applied migrations, run the v6 backfill on
+            // the same db file. Failure is logged but non-fatal — startup still proceeds.
+            let app_data = app.path().app_data_dir().ok();
+            if let Some(mut dir) = app_data {
+                dir.push("scholara.db");
+                if let Err(e) = migrate_v6::backfill_messages_v6(&dir) {
+                    eprintln!("backfill_messages_v6 failed: {e}");
+                }
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             copy_uploaded_file,
             app_data_dir_path,
