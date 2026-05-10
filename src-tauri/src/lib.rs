@@ -43,6 +43,12 @@ pub fn run() {
             sql: include_str!("../migrations/0005_ai_chat.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 6,
+            description: "openrouter: rebuild messages table for tool role + new payload shape",
+            sql: include_str!("../migrations/0006_openrouter_message_shape.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
