@@ -6,7 +6,7 @@ const SERVICE: &str = "scholara";
 
 fn account_for(name: &str) -> Result<&'static str, String> {
     match name {
-        "anthropic" => Ok("anthropic_api_key"),
+        "openrouter" => Ok("openrouter_api_key"),
         "gutenberg" => Ok("gutenberg_api_key"),
         _ => Err(format!("Unknown secret name={name}")),
     }
@@ -24,33 +24,6 @@ fn entry(name: &str, operation: &str) -> Result<(String, Entry), String> {
     let account = account_for(name)?.to_string();
     let e = entry_for_account(&account, name, operation)?;
     Ok((account, e))
-}
-
-fn confirm_saved(name: &str, account: &str, expected: &str) -> Result<(), String> {
-    let fresh = entry_for_account(account, name, "confirm saved")?;
-    match fresh.get_password() {
-        Ok(saved) if saved == expected => Ok(()),
-        Ok(_) => Err(format!(
-            "Could not confirm saved secret name={name} service={SERVICE} account={account}: saved value did not match"
-        )),
-        Err(KeyringError::NoEntry) => Err(format!(
-            "Could not confirm saved secret name={name} service={SERVICE} account={account}: entry was missing after save"
-        )),
-        Err(err) => Err(format!(
-            "Could not confirm saved secret name={name} service={SERVICE} account={account}: {err}"
-        )),
-    }
-}
-
-fn save_password(entry: &Entry, name: &str, account: &str, value: &str) -> Result<(), String> {
-    match entry.get_password() {
-        Ok(_) | Err(KeyringError::NoEntry) => entry.set_password(value).map_err(|err| {
-            format!("Could not save secret name={name} service={SERVICE} account={account}: {err}")
-        }),
-        Err(err) => Err(format!(
-            "Could not inspect secret before save name={name} service={SERVICE} account={account}: {err}"
-        )),
-    }
 }
 
 #[derive(Serialize)]
@@ -87,8 +60,9 @@ pub fn set_secret(name: String, value: String) -> Result<(), String> {
             )),
         }
     } else {
-        save_password(&e, &name, &account, &value)?;
-        confirm_saved(&name, &account, &value)
+        e.set_password(&value).map_err(|err| {
+            format!("Could not save secret name={name} service={SERVICE} account={account}: {err}")
+        })
     }
 }
 

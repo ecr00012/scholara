@@ -164,14 +164,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   saveGutenbergApiKey: async (key) => {
     try {
       await secretsIpc.setSecret('gutenberg', key);
-      const saved = key === '' ? null : await secretsIpc.getSecret('gutenberg');
-      if (key !== '' && saved !== key) {
-        throw new Error(
-          saved === null
-            ? 'The keychain entry was missing immediately after save.'
-            : 'The keychain entry did not match immediately after save.',
-        );
-      }
       set({
         gutenbergApiKey: key === '' ? null : key,
         gutenbergApiKeyError: null,

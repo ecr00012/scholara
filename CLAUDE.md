@@ -15,7 +15,7 @@ Scholara is an offline-first desktop reading and study app — Google NotebookLM
 - **LLM:** OpenRouter via the Rust `chat_stream` / `chat_oneshot` Tauri commands, hitting OpenRouter's OpenAI-compatible `/v1/chat/completions` endpoint. Default model is a curated free tool-capable model (see `src/agent/models.ts`); user-selectable in Settings → AI Mentor. Streaming enabled.
 - **Streaming:** Every LLM response streams token-by-token.
 - **Auth:** No accounts, no authentication, no online backend.
-- **API key:** User-provided OpenRouter API key stored in the OS keychain via `getSecret('openrouter')` / `setSecret('openrouter')`. The renderer never holds the raw key — all OpenRouter HTTP traffic goes through Rust. The legacy `anthropic_api_key` keychain entry, if present, is left untouched and unread.
+- **API key:** User-provided OpenRouter API key stored in the OS keychain via `getSecret('openrouter')` / `setSecret('openrouter')`. The renderer never holds the raw key — all OpenRouter HTTP traffic goes through Rust. Any pre-existing `anthropic_api_key` entry from earlier builds is no longer addressable from the app and is left orphaned in the OS keychain by design.
 - **Secrets:** All keychain-backed secrets go through `getSecret(name)` / `setSecret(name)`. Service is `"scholara"`; account is the `name` argument.
 - **Platform:** Cross-platform (macOS, Windows, Linux). All IPC and file paths must be cross-platform.
 - **No SSR.**
