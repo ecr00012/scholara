@@ -1,27 +1,22 @@
 import { resolveResource } from '@tauri-apps/api/path';
-import { env, pipeline, type FeatureExtractionPipeline } from '@xenova/transformers';
+import type { FeatureExtractionPipeline } from '@xenova/transformers';
 
 export const EMBEDDER_MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
 export const EMBEDDING_DIM = 384;
 
 let pipelinePromise: Promise<FeatureExtractionPipeline> | null = null;
 
-async function configureEnv(): Promise<void> {
-  // Resolve the bundled model directory; transformers.js expects the parent
-  // path that contains `<org>/<model>/...` so it can append the model id itself.
-  const modelsDir = await resolveResource('resources/models');
-  env.allowRemoteModels = false;
-  env.allowLocalModels = true;
-  // Plan-literal form; if the renderer-side fetch can't resolve a raw OS path
-  // during tauri dev we'll switch to convertFileSrc(modelsDir) + '/'.
-  env.localModelPath = modelsDir + '/';
-  env.useBrowserCache = false;
-}
-
 export async function getEmbedder(): Promise<FeatureExtractionPipeline> {
   if (!pipelinePromise) {
     pipelinePromise = (async () => {
-      await configureEnv();
+      // Dynamic import isolates transformers.js (and its onnxruntime-web chain)
+      // so a failure here doesn't crash the renderer at module-eval time.
+      const { env, pipeline } = await import('@xenova/transformers');
+      const modelsDir = await resolveResource('resources/models');
+      env.allowRemoteModels = false;
+      env.allowLocalModels = true;
+      env.localModelPath = modelsDir + '/';
+      env.useBrowserCache = false;
       return (await pipeline('feature-extraction', EMBEDDER_MODEL_ID, {
         quantized: true,
       })) as FeatureExtractionPipeline;

@@ -10,10 +10,10 @@ const isE2E = process.env.VITE_E2E === '1';
 export default defineConfig(async () => ({
   plugins: [react()],
 
-  // transformers.js ships an onnxruntime-web worker chunk that breaks esbuild's
-  // pre-bundling; opt out so Vite serves it as-is.
+  // transformers.js ships onnxruntime-web/onnxruntime-common; pre-bundling the
+  // CJS deps loses the `registerBackend` named export. Exclude the whole chain.
   optimizeDeps: {
-    exclude: ['@xenova/transformers'],
+    exclude: ['@xenova/transformers', 'onnxruntime-web', 'onnxruntime-common'],
   },
 
   resolve: {
