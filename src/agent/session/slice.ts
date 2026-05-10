@@ -84,10 +84,27 @@ export interface AgentSessionSliceDeps {
   getCurrentBookVocab: () => VocabRow[];
 }
 
+type AgentSessionSet<TExtra extends object> = Parameters<
+  StateCreator<AgentSessionSlice & TExtra, [], [], AgentSessionSlice>
+>[0];
+
+function setAgentSession<TExtra extends object>(
+  set: AgentSessionSet<TExtra>,
+  updater:
+    | AgentSessionState
+    | ((session: AgentSessionState) => AgentSessionState),
+) {
+  set((state) => ({
+    ...state,
+    agentSession:
+      typeof updater === 'function' ? updater(state.agentSession) : updater,
+  }));
+}
+
 export const createAgentSessionSlice =
-  (
+  <TExtra extends object = object>(
     deps: AgentSessionSliceDeps,
-  ): StateCreator<AgentSessionSlice, [], [], AgentSessionSlice> =>
+  ): StateCreator<AgentSessionSlice & TExtra, [], [], AgentSessionSlice> =>
   (set, get) => ({
     agentSession: EMPTY_AGENT_SESSION,
 
@@ -114,21 +131,19 @@ export const createAgentSessionSlice =
       const thread = await threadsDb.getThread(db, threadId);
       if (!thread) throw new Error(`Thread ${threadId} not found`);
       const rows = await messagesDb.listMessagesForThread(db, threadId);
-      set({
-        agentSession: {
-          bookId,
-          thread,
-          messages: rows.map(rowToUi),
-          phase: 'idle',
-          error: null,
-        },
+      setAgentSession(set, {
+        bookId,
+        thread,
+        messages: rows.map(rowToUi),
+        phase: 'idle',
+        error: null,
       });
     },
 
     clearAgentSession: () => {
       const { bookId } = get().agentSession;
       if (bookId !== null) abortFor(bookId);
-      set({ agentSession: EMPTY_AGENT_SESSION });
+      setAgentSession(set, EMPTY_AGENT_SESSION);
     },
 
     loadAgentThread: async (threadId) => {
@@ -136,15 +151,13 @@ export const createAgentSessionSlice =
       const thread = await threadsDb.getThread(db, threadId);
       if (!thread) throw new Error(`Thread ${threadId} not found`);
       const rows = await messagesDb.listMessagesForThread(db, threadId);
-      set((s) => ({
-        agentSession: {
-          ...s.agentSession,
-          bookId: thread.book_id,
-          thread,
-          messages: rows.map(rowToUi),
-          phase: 'idle',
-          error: null,
-        },
+      setAgentSession(set, (session) => ({
+        ...session,
+        bookId: thread.book_id,
+        thread,
+        messages: rows.map(rowToUi),
+        phase: 'idle',
+        error: null,
       }));
     },
 
@@ -166,14 +179,14 @@ export const createAgentSessionSlice =
       if (!thread) return;
       const db = await getDb();
       await threadsDb.setThreadSpoilerMode(db, thread.id, mode);
-      set((s) => ({
-        agentSession: s.agentSession.thread
+      setAgentSession(set, (session) =>
+        session.thread
           ? {
-              ...s.agentSession,
-              thread: { ...s.agentSession.thread, spoiler_mode: mode },
+              ...session,
+              thread: { ...session.thread, spoiler_mode: mode },
             }
-          : s.agentSession,
-      }));
+          : session,
+      );
     },
 
     sendAgentMessage: async (text) => {
@@ -183,11 +196,9 @@ export const createAgentSessionSlice =
       if (!book) return;
 
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        set((s) => ({
-          agentSession: {
-            ...s.agentSession,
-            error: 'Connect to the internet to use AI features.',
-          },
+        setAgentSession(set, (session) => ({
+          ...session,
+          error: 'Connect to the internet to use AI features.',
         }));
         return;
       }
@@ -195,17 +206,15 @@ export const createAgentSessionSlice =
       const ctrl = new AbortController();
       setAbortController(bookId, ctrl);
 
-      set((s) => ({
-        agentSession: {
-          ...s.agentSession,
-          phase: 'thinking',
-          error: null,
-          messages: [
-            ...s.agentSession.messages,
-            { id: -Date.now(), role: 'user', text },
-            { id: 'live', role: 'assistant', text: '', live: true },
-          ],
-        },
+      setAgentSession(set, (session) => ({
+        ...session,
+        phase: 'thinking',
+        error: null,
+        messages: [
+          ...session.messages,
+          { id: -Date.now(), role: 'user', text },
+          { id: 'live', role: 'assistant', text: '', live: true },
+        ],
       }));
 
       const db = await getDb();
@@ -254,20 +263,20 @@ export const createAgentSessionSlice =
           toolContext: ctx.toolContext,
           signal: ctrl.signal,
           onTextDelta: (delta) => {
-            set((s) => {
-              const arr = s.agentSession.messages;
+            setAgentSession(set, (session) => {
+              const arr = session.messages;
               const live = arr[arr.length - 1];
-              if (!live || !live.live || live.role !== 'assistant') return s;
+              if (!live || !live.live || live.role !== 'assistant') {
+                return session;
+              }
               const updated: UiMessage = {
                 ...live,
                 text: (live.text ?? '') + delta,
               };
               return {
-                agentSession: {
-                  ...s.agentSession,
-                  phase: 'streaming',
-                  messages: [...arr.slice(0, -1), updated],
-                },
+                ...session,
+                phase: 'streaming',
+                messages: [...arr.slice(0, -1), updated],
               };
             });
           },
@@ -279,8 +288,8 @@ export const createAgentSessionSlice =
               content: serializeAssistant(msg),
               position_at_send: null,
             });
-            set((s) => {
-              const arr = s.agentSession.messages;
+            setAgentSession(set, (session) => {
+              const arr = session.messages;
               const live = arr[arr.length - 1];
               const ui: UiMessage =
                 msg.tool_calls && msg.tool_calls.length > 0
@@ -294,7 +303,7 @@ export const createAgentSessionSlice =
               const messages = !live?.live
                 ? [...arr, ui]
                 : [...arr.slice(0, -1), ui];
-              return { agentSession: { ...s.agentSession, messages } };
+              return { ...session, messages };
             });
           },
           onToolResults: async (msgs) => {
@@ -307,13 +316,13 @@ export const createAgentSessionSlice =
                 position_at_send: null,
               });
             }
-            set((s) => ({
-              agentSession: {
-                ...s.agentSession,
-                phase: 'tool',
-                messages: [
-                  ...s.agentSession.messages,
-                  ...msgs.map((m): UiMessage =>
+            setAgentSession(set, (session) => ({
+              ...session,
+              phase: 'tool',
+              messages: [
+                ...session.messages,
+                ...msgs.map(
+                  (m): UiMessage =>
                     m.role === 'tool'
                       ? {
                           id: -Date.now(),
@@ -322,15 +331,14 @@ export const createAgentSessionSlice =
                           text: m.content,
                         }
                       : { id: -Date.now(), role: 'user', text: '' },
-                  ),
-                  { id: 'live', role: 'assistant', text: '', live: true },
-                ],
-              },
+                ),
+                { id: 'live', role: 'assistant', text: '', live: true },
+              ],
             }));
           },
         });
 
-        set((s) => ({ agentSession: { ...s.agentSession, phase: 'idle' } }));
+        setAgentSession(set, (session) => ({ ...session, phase: 'idle' }));
         clearAbortController(bookId);
 
         const assistantTurns = (
@@ -351,16 +359,14 @@ export const createAgentSessionSlice =
         void maybeUpdateGlobalProfile({ model: thread.model });
 
         const refreshed = await threadsDb.getThread(db, thread.id);
-        set((s) => ({ agentSession: { ...s.agentSession, thread: refreshed } }));
+        setAgentSession(set, (session) => ({ ...session, thread: refreshed }));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        set((s) => ({
-          agentSession: {
-            ...s.agentSession,
-            phase: 'idle',
-            error: message,
-            messages: s.agentSession.messages.filter((m) => !m.live),
-          },
+        setAgentSession(set, (session) => ({
+          ...session,
+          phase: 'idle',
+          error: message,
+          messages: session.messages.filter((m) => !m.live),
         }));
         clearAbortController(bookId);
         if (message === 'aborted') {

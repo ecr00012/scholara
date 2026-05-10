@@ -7,6 +7,10 @@ import * as secretsIpc from './ipc/secrets';
 import { runMetadataExtractionPass as runMetadataExtractionPassLib } from './lib/extractMetadata';
 import type { Book, FileType, NoteRow, VocabRow } from './db/types';
 import type { Position } from './lib/positionShape';
+import {
+  createAgentSessionSlice,
+  type AgentSessionSlice,
+} from './agent/session/slice';
 import type {
   ReaderNavItem,
   ReaderPreferences,
@@ -17,7 +21,7 @@ import { DEFAULT_READER_PREFERENCES } from './screens/Reader/readerSupport';
 
 export type AppView = 'library' | 'settings' | 'reader';
 
-interface AppState {
+interface AppState extends AgentSessionSlice {
   view: AppView;
   books: Book[];
   openrouterApiKey: string | null;
@@ -84,7 +88,13 @@ interface AppState {
   runMetadataExtractionPass: () => Promise<void>;
 }
 
-export const useAppStore = create<AppState>((set, get) => ({
+export const useAppStore = create<AppState>((set, get, api) => ({
+  ...createAgentSessionSlice<Omit<AppState, keyof AgentSessionSlice>>({
+    getBookById: (id) => get().books.find((book) => book.id === id) ?? null,
+    getCurrentBookNotes: () => get().currentBookNotes,
+    getCurrentBookVocab: () => get().currentBookVocab,
+  })(set, get, api),
+
   view: 'library',
   books: [],
   openrouterApiKey: null,
@@ -180,6 +190,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   dismissApiKeyBanner: () => set({ apiKeyBannerDismissed: true }),
 
   openBook: async (id) => {
+    get().clearAgentSession();
     set({
       currentBookId: id,
       view: 'reader',
@@ -197,9 +208,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().reloadNotesForCurrentBook(),
       get().reloadVocabForCurrentBook(),
     ]);
+    await get().initAgentSessionForBook(id);
   },
 
-  closeBook: () =>
+  closeBook: () => {
+    get().clearAgentSession();
     set({
       currentBookId: null,
       view: 'library',
@@ -210,7 +223,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       readerSearchQuery: '',
       readerSearchResults: [],
       readerSearchStatus: 'idle',
-    }),
+    });
+  },
 
   patchBook: (id, patch) =>
     set({
