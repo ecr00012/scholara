@@ -6,9 +6,9 @@ const { chatStreamMock, dispatchToolMock } = vi.hoisted(() => ({
   dispatchToolMock: vi.fn(),
 }));
 
-vi.mock('../../src/agent/anthropic', async () => {
-  const actual = await vi.importActual<typeof import('../../src/agent/anthropic')>(
-    '../../src/agent/anthropic',
+vi.mock('../../src/agent/openrouter', async () => {
+  const actual = await vi.importActual<typeof import('../../src/agent/openrouter')>(
+    '../../src/agent/openrouter',
   );
   return { ...actual, chatStream: chatStreamMock };
 });
@@ -25,46 +25,112 @@ beforeEach(() => {
   dispatchToolMock.mockReset();
 });
 
-describe('runTurn', () => {
+describe('runTurn (OpenAI shape)', () => {
   it('stops after a single text-only response', async () => {
-    chatStreamMock.mockResolvedValueOnce({
-      role: 'assistant',
-      content: [{ type: 'text', text: 'hello' }],
-    });
+    chatStreamMock.mockResolvedValueOnce({ role: 'assistant', content: 'hello' });
     const onAssistant = vi.fn();
     await runTurn({
-      model: 'm', system: 's', messages: [], userText: 'hi',
+      model: 'm',
+      system: 's',
+      messages: [],
+      userText: 'hi',
       toolContext: { bookId: 1, spoilerCap: { enabled: false, position: null, index: {} } },
-      onTextDelta: () => {}, onAssistantMessage: onAssistant, onToolResults: () => {},
+      onTextDelta: () => {},
+      onAssistantMessage: onAssistant,
+      onToolResults: () => {},
     });
     expect(chatStreamMock).toHaveBeenCalledTimes(1);
     expect(onAssistant).toHaveBeenCalledTimes(1);
   });
 
-  it('dispatches tool calls and feeds results back', async () => {
+  it('dispatches tool_calls and feeds back role:tool messages', async () => {
     chatStreamMock
       .mockResolvedValueOnce({
         role: 'assistant',
-        content: [
-          { type: 'tool_use', id: 'tu1', name: 'search_book', input: { query: 'q' } },
+        content: null,
+        tool_calls: [
+          {
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'search_book', arguments: '{"query":"q"}' },
+          },
         ],
       })
-      .mockResolvedValueOnce({
-        role: 'assistant',
-        content: [{ type: 'text', text: 'final' }],
-      });
+      .mockResolvedValueOnce({ role: 'assistant', content: 'final' });
     dispatchToolMock.mockResolvedValueOnce({ content: '[]', is_error: false });
 
     const onTool = vi.fn();
     await runTurn({
-      model: 'm', system: 's', messages: [], userText: 'hi',
+      model: 'm',
+      system: 's',
+      messages: [],
+      userText: 'hi',
       toolContext: { bookId: 1, spoilerCap: { enabled: false, position: null, index: {} } },
-      onTextDelta: () => {}, onAssistantMessage: () => {}, onToolResults: onTool,
+      onTextDelta: () => {},
+      onAssistantMessage: () => {},
+      onToolResults: onTool,
     });
     expect(chatStreamMock).toHaveBeenCalledTimes(2);
-    expect(dispatchToolMock).toHaveBeenCalledWith('search_book', { query: 'q' }, expect.anything());
+    expect(dispatchToolMock).toHaveBeenCalledWith(
+      'search_book',
+      { query: 'q' },
+      expect.anything(),
+    );
     expect(onTool).toHaveBeenCalledTimes(1);
-    const toolMsg = onTool.mock.calls[0][0];
-    expect(toolMsg.content[0].type).toBe('tool_result');
+    const toolMsgs = onTool.mock.calls[0][0];
+    expect(toolMsgs).toHaveLength(1);
+    expect(toolMsgs[0]).toEqual({
+      role: 'tool',
+      tool_call_id: 'call_1',
+      content: '[]',
+    });
+  });
+
+  it('prepends a system message and the new user turn into the conversation sent to chatStream', async () => {
+    chatStreamMock.mockResolvedValueOnce({ role: 'assistant', content: 'ok' });
+    await runTurn({
+      model: 'm',
+      system: 'SYS',
+      messages: [{ role: 'user', content: 'prior' }],
+      userText: 'now',
+      toolContext: { bookId: 1, spoilerCap: { enabled: false, position: null, index: {} } },
+      onTextDelta: () => {},
+      onAssistantMessage: () => {},
+      onToolResults: () => {},
+    });
+    const reqArg = chatStreamMock.mock.calls[0][0];
+    expect(reqArg.messages[0]).toEqual({ role: 'system', content: 'SYS' });
+    expect(reqArg.messages[1]).toEqual({ role: 'user', content: 'prior' });
+    expect(reqArg.messages[2]).toEqual({ role: 'user', content: 'now' });
+  });
+
+  it('marks tool errors with tool_error: prefix in the tool message content', async () => {
+    chatStreamMock
+      .mockResolvedValueOnce({
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          {
+            id: 'c',
+            type: 'function',
+            function: { name: 'search_book', arguments: '{}' },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ role: 'assistant', content: 'done' });
+    dispatchToolMock.mockResolvedValueOnce({ content: 'whoops', is_error: true });
+
+    const onTool = vi.fn();
+    await runTurn({
+      model: 'm',
+      system: 's',
+      messages: [],
+      userText: 'hi',
+      toolContext: { bookId: 1, spoilerCap: { enabled: false, position: null, index: {} } },
+      onTextDelta: () => {},
+      onAssistantMessage: () => {},
+      onToolResults: onTool,
+    });
+    expect(onTool.mock.calls[0][0][0].content).toMatch(/^tool_error:/);
   });
 });
