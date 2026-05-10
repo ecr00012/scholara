@@ -39,7 +39,8 @@ export async function ensureBookIndexed(
   if (
     existing?.status === 'ready' &&
     existing.content_hash === hash &&
-    existing.embedder_model === EMBEDDER_MODEL_ID
+    existing.embedder_model === EMBEDDER_MODEL_ID &&
+    (existing.chunk_count ?? 0) > 0
   ) {
     onProgress({
       total: existing.chunk_count ?? 0,

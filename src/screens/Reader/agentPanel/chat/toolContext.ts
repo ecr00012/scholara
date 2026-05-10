@@ -2,10 +2,15 @@ import type { Book } from '../../../../db/types';
 import type { Position } from '../../../../lib/positionShape';
 import { getDb } from '../../../../db/client';
 import { loadChunksForBook } from '../../../../db/bookChunks';
-import { extractPdfSegments, extractEpubSegments } from '../../../../rag/extractText';
+import {
+  extractPdfSegments,
+  extractEpubSegments,
+  resolveEpubSectionHref,
+} from '../../../../rag/extractText';
 import { readBookBytes } from '../../../../ipc/files';
 import type { ToolContext } from '../../../../agent/tools/registry';
 import type { ChunkOrdinalIndex } from '../../../../agent/spoilerGuard';
+import ePub from 'epubjs';
 
 const PAGE_RADIUS = 1; // current ± 1 page
 
@@ -14,9 +19,18 @@ export interface ToolContextBundle {
   currentPageText: string;
 }
 
-export async function buildToolContext(book: Book, position: Position | null): Promise<ToolContextBundle> {
+export async function buildToolContext(
+  book: Book,
+  position: Position | null,
+  spoilerEnabled: boolean,
+): Promise<ToolContextBundle> {
   const db = await getDb();
   const chunks = await loadChunksForBook(db, book.id, null);
+  if (chunks.length === 0) {
+    console.warn(
+      `[buildToolContext] no indexed chunks found for book ${book.id}; search_book will return no passages until indexing is repaired.`,
+    );
+  }
 
   // Build the ordinal index used by spoiler guard.
   const index: ChunkOrdinalIndex = {};
@@ -36,12 +50,19 @@ export async function buildToolContext(book: Book, position: Position | null): P
   }
 
   const currentPageText = await extractCurrentPageText(book, position);
+  if (position && currentPageText.trim().length === 0) {
+    console.warn(
+      `[buildToolContext] no current page text resolved for book ${book.id} at ${position.type}:${position.locator}`,
+    );
+  }
 
   return {
     currentPageText,
     toolContext: {
       bookId: book.id,
-      spoilerCap: { enabled: true, position, index },
+      // Without a known position, capping is meaningless and would zero out
+      // the searchable space — so disable it until a position is hydrated.
+      spoilerCap: { enabled: spoilerEnabled && position !== null, position, index },
     },
   };
 }
@@ -60,11 +81,22 @@ async function extractCurrentPageText(book: Book, position: Position | null): Pr
     }
     if (book.file_type === 'epub' && position.type === 'epub') {
       const segments = await extractEpubSegments(bytes);
-      // The locator's bang prefix identifies the spine href.
-      const href = position.locator.startsWith('epubcfi(')
-        ? position.locator.slice(8, position.locator.indexOf('!'))
-        : position.locator;
-      const idx = segments.findIndex((s) => href.endsWith(s.positionMarker) || s.positionMarker.endsWith(href));
+      const epubBook = ePub(bytes);
+      let href: string | null = null;
+      try {
+        await epubBook.ready;
+        href = resolveEpubSectionHref(epubBook, position.locator);
+      } finally {
+        epubBook.destroy();
+      }
+      const idx = href
+        ? segments.findIndex(
+            (s) =>
+              stripFragment(s.positionMarker) === href ||
+              href.endsWith(stripFragment(s.positionMarker)) ||
+              stripFragment(s.positionMarker).endsWith(href),
+          )
+        : -1;
       if (idx === -1) return segments[0]?.text.slice(0, 6000) ?? '';
       const lo = Math.max(0, idx - PAGE_RADIUS);
       const hi = Math.min(segments.length - 1, idx + PAGE_RADIUS);
@@ -74,4 +106,9 @@ async function extractCurrentPageText(book: Book, position: Position | null): Pr
     console.warn('[buildToolContext] currentPageText extraction failed:', err);
   }
   return '';
+}
+
+function stripFragment(href: string): string {
+  const hashIdx = href.indexOf('#');
+  return hashIdx === -1 ? href : href.slice(0, hashIdx);
 }

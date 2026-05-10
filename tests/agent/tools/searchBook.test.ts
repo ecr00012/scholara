@@ -40,6 +40,38 @@ describe('searchBook', () => {
     expect(results[0].text).toBe('whales');
   });
 
+  it('returns indexed EPUB passages when spoiler cap is disabled', async () => {
+    (loadChunksForBook as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: 1,
+        ordinal: 6,
+        position_marker: 'chapter-7.xhtml',
+        text: 'Chapter 7 has the whale passage.',
+        embedding: vecBytes([1, 0]),
+      },
+    ]);
+
+    const results = await searchBook({
+      bookId: 1,
+      query: 'whale',
+      k: 6,
+      spoilerCap: {
+        enabled: false,
+        position: { type: 'epub', locator: 'epubcfi(/6/14!/4/2)', fraction: 0.7, label: 'Chapter 7' },
+        index: {},
+      },
+    });
+
+    expect((loadChunksForBook as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1]).toBe(1);
+    expect((loadChunksForBook as unknown as ReturnType<typeof vi.fn>).mock.calls[0][2]).toBeNull();
+    expect(results).toEqual([
+      expect.objectContaining({
+        position_marker: 'chapter-7.xhtml',
+        text: 'Chapter 7 has the whale passage.',
+      }),
+    ]);
+  });
+
   it('passes maxOrdinal when spoiler cap is enabled', async () => {
     (loadChunksForBook as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     await searchBook({

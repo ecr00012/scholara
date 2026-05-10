@@ -389,11 +389,11 @@ export function EpubReader({ book, bytes }: Props) {
     };
     rendition.once('attached', swapResizeListener);
 
-    void rendition.display(initialLocator);
-
     void (async () => {
       await epubBook.ready;
       if (cancelled) return;
+
+      void rendition.display(initialLocator);
 
       if (book.epub_locations) {
         epubBook.locations.load(book.epub_locations);

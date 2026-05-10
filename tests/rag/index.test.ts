@@ -1,0 +1,128 @@
+// @vitest-environment node
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Book } from '../../src/db/types';
+
+const {
+  getDbMock,
+  readBookBytesMock,
+  hashBytesMock,
+  getIndexStateMock,
+  upsertIndexStateMock,
+  deleteChunksForBookMock,
+  insertChunksMock,
+  countChunksForBookMock,
+  extractEpubSegmentsMock,
+  extractPdfSegmentsMock,
+  chunkSegmentsMock,
+  embedMock,
+} = vi.hoisted(() => ({
+  getDbMock: vi.fn(),
+  readBookBytesMock: vi.fn(),
+  hashBytesMock: vi.fn(),
+  getIndexStateMock: vi.fn(),
+  upsertIndexStateMock: vi.fn(),
+  deleteChunksForBookMock: vi.fn(),
+  insertChunksMock: vi.fn(),
+  countChunksForBookMock: vi.fn(),
+  extractEpubSegmentsMock: vi.fn(),
+  extractPdfSegmentsMock: vi.fn(),
+  chunkSegmentsMock: vi.fn(),
+  embedMock: vi.fn(),
+}));
+
+vi.mock('../../src/db/client', () => ({ getDb: getDbMock }));
+vi.mock('../../src/ipc/files', () => ({ readBookBytes: readBookBytesMock }));
+vi.mock('../../src/lib/hash', () => ({ hashBytes: hashBytesMock }));
+vi.mock('../../src/db/bookIndexState', () => ({
+  getIndexState: getIndexStateMock,
+  upsertIndexState: upsertIndexStateMock,
+}));
+vi.mock('../../src/db/bookChunks', () => ({
+  deleteChunksForBook: deleteChunksForBookMock,
+  insertChunks: insertChunksMock,
+  countChunksForBook: countChunksForBookMock,
+}));
+vi.mock('../../src/rag/extractText', () => ({
+  extractEpubSegments: extractEpubSegmentsMock,
+  extractPdfSegments: extractPdfSegmentsMock,
+}));
+vi.mock('../../src/rag/chunker', () => ({ chunkSegments: chunkSegmentsMock }));
+vi.mock('../../src/rag/embedder', () => ({
+  EMBEDDER_MODEL_ID: 'Xenova/all-MiniLM-L6-v2',
+  embed: embedMock,
+}));
+
+import { ensureBookIndexed } from '../../src/rag/index';
+
+const book: Book = {
+  id: 1,
+  title: 'Indexed EPUB',
+  author: null,
+  cover_image_path: null,
+  file_path: '/book.epub',
+  file_type: 'epub',
+  last_opened: null,
+  current_position: null,
+  display_mode: 'agent',
+  metadata_source: 'filename',
+  epub_locations: null,
+  created_at: '2026-05-10 00:00:00',
+};
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  getDbMock.mockResolvedValue({});
+  readBookBytesMock.mockResolvedValue(new ArrayBuffer(8));
+  hashBytesMock.mockResolvedValue('hash');
+  getIndexStateMock.mockResolvedValue(null);
+  upsertIndexStateMock.mockResolvedValue(undefined);
+  deleteChunksForBookMock.mockResolvedValue(undefined);
+  insertChunksMock.mockResolvedValue(undefined);
+  countChunksForBookMock.mockResolvedValue(1);
+  extractEpubSegmentsMock.mockResolvedValue([
+    { positionMarker: 'chapter-7.xhtml', text: 'Chapter 7 text.' },
+  ]);
+  extractPdfSegmentsMock.mockResolvedValue([]);
+  chunkSegmentsMock.mockReturnValue([
+    { ordinal: 0, positionMarker: 'chapter-7.xhtml', text: 'Chapter 7 text.' },
+  ]);
+  embedMock.mockResolvedValue([new Float32Array(384)]);
+});
+
+describe('ensureBookIndexed', () => {
+  it('does not treat a ready zero-chunk EPUB index as valid', async () => {
+    getIndexStateMock.mockResolvedValueOnce({
+      book_id: book.id,
+      status: 'ready',
+      chunk_count: 0,
+      embedder_model: 'Xenova/all-MiniLM-L6-v2',
+      content_hash: 'hash',
+      error: null,
+      updated_at: '2026-05-10 00:00:00',
+    });
+    const onProgress = vi.fn();
+
+    await ensureBookIndexed(book, onProgress);
+
+    expect(extractEpubSegmentsMock).toHaveBeenCalledTimes(1);
+    expect(deleteChunksForBookMock).toHaveBeenCalledWith(expect.anything(), book.id);
+    expect(insertChunksMock).toHaveBeenCalledWith(
+      expect.anything(),
+      [
+        expect.objectContaining({
+          book_id: book.id,
+          position_marker: 'chapter-7.xhtml',
+          text: 'Chapter 7 text.',
+        }),
+      ],
+    );
+    expect(upsertIndexStateMock).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        book_id: book.id,
+        status: 'ready',
+        chunk_count: 1,
+      }),
+    );
+  });
+});

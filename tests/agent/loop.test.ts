@@ -104,7 +104,9 @@ describe('runTurn (OpenAI shape)', () => {
     expect(reqArg.messages[2]).toEqual({ role: 'user', content: 'now' });
   });
 
-  it('marks tool errors with tool_error: prefix in the tool message content', async () => {
+  it('forwards dispatchTool content verbatim without re-prefixing tool_error', async () => {
+    // dispatchTool already prefixes its own error string with `tool_error:`;
+    // the loop must not double-prefix.
     chatStreamMock
       .mockResolvedValueOnce({
         role: 'assistant',
@@ -118,7 +120,10 @@ describe('runTurn (OpenAI shape)', () => {
         ],
       })
       .mockResolvedValueOnce({ role: 'assistant', content: 'done' });
-    dispatchToolMock.mockResolvedValueOnce({ content: 'whoops', is_error: true });
+    dispatchToolMock.mockResolvedValueOnce({
+      content: 'tool_error: whoops',
+      is_error: true,
+    });
 
     const onTool = vi.fn();
     await runTurn({
@@ -131,6 +136,6 @@ describe('runTurn (OpenAI shape)', () => {
       onAssistantMessage: () => {},
       onToolResults: onTool,
     });
-    expect(onTool.mock.calls[0][0][0].content).toMatch(/^tool_error:/);
+    expect(onTool.mock.calls[0][0][0].content).toBe('tool_error: whoops');
   });
 });

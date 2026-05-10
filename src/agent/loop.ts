@@ -50,7 +50,7 @@ export async function runTurn(args: RunTurnArgs): Promise<void> {
         return {
           role: 'tool',
           tool_call_id: tc.id,
-          content: out.is_error ? `tool_error: ${out.content}` : out.content,
+          content: out.content,
         };
       }),
     );
