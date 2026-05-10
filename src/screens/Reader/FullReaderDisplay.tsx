@@ -9,6 +9,7 @@ import {
   type NotesModeInputHandle,
 } from './NotesModeInput';
 import { FloatingLogoInput } from './FloatingLogoInput';
+import { ReaderModeAgentOverlay } from './ReaderModeAgentOverlay';
 
 interface Props {
   book: Book;
@@ -53,6 +54,11 @@ export function FullReaderDisplay({ book, bytes }: Props) {
         transition={readerPartTransition}
       >
         <ReaderLeaf book={book} bytes={bytes} />
+        {!notesModeActive && (
+          <div className="pointer-events-none absolute inset-0">
+            <ReaderModeAgentOverlay />
+          </div>
+        )}
       </motion.div>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center">

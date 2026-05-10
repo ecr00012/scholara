@@ -2,15 +2,25 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Feather } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { useAppStore } from '../../store';
 
 export function FloatingLogoInput() {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
+  const phase = useAppStore((state) => state.agentSession.phase);
+  const sendAgentMessage = useAppStore((state) => state.sendAgentMessage);
+  const inFlight = phase !== 'idle';
 
   function submit() {
+    const trimmed = text.trim();
     setText('');
     setOpen(false);
-    toast.message('AI features arriving in Phase 3.');
+    if (!trimmed || inFlight) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      toast.message('Connect to the internet to use AI features.');
+      return;
+    }
+    void sendAgentMessage(trimmed);
   }
 
   return (
@@ -22,7 +32,8 @@ export function FloatingLogoInput() {
           type="button"
           aria-label="Ask Scholara"
           onClick={() => setOpen(true)}
-          className="flex h-14 w-14 items-center justify-center rounded-full border border-amber-100 bg-cream/95 shadow-lg"
+          disabled={inFlight}
+          className="flex h-14 w-14 items-center justify-center rounded-full border border-amber-100 bg-cream/95 shadow-lg disabled:opacity-60"
         >
           <Feather className="h-5 w-5 text-ink" />
         </motion.button>
