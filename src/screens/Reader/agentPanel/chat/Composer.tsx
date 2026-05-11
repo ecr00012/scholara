@@ -1,5 +1,6 @@
 import { useState, KeyboardEvent } from 'react';
 import { ArrowUp, Square } from 'lucide-react';
+import { markIndexingInteraction } from '../../../../rag/indexingActivity';
 import type { ChatPhase } from './types';
 
 interface Props {
@@ -13,6 +14,7 @@ export function Composer({ phase, onSend, onCancel }: Props) {
   const inFlight = phase !== 'idle';
 
   function handleKey(e: KeyboardEvent<HTMLTextAreaElement>) {
+    markIndexingInteraction();
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       submit();
@@ -29,7 +31,11 @@ export function Composer({ phase, onSend, onCancel }: Props) {
     <div className="flex items-end gap-2 border-t border-stone-200 bg-white p-2">
       <textarea
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          markIndexingInteraction();
+          setText(e.target.value);
+        }}
+        onFocus={markIndexingInteraction}
         onKeyDown={handleKey}
         rows={1}
         placeholder="Ask about this book…"

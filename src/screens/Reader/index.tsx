@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Book } from '../../db/types';
 import { useAppStore } from '../../store';
 import { readBookBytes } from '../../ipc/files';
+import { markIndexingInteraction } from '../../rag/indexingActivity';
 import { AgentDisplay } from './AgentDisplay';
 import { DictionaryModal } from './DictionaryModal';
 import { FullReaderDisplay } from './FullReaderDisplay';
@@ -81,7 +82,13 @@ function LoadedReaderScreen({ book, bytes }: { book: Book; bytes: ArrayBuffer })
   }, []);
 
   return (
-    <>
+    <div
+      className="h-full w-full"
+      onPointerMove={markIndexingInteraction}
+      onPointerDown={markIndexingInteraction}
+      onWheel={markIndexingInteraction}
+      onScroll={markIndexingInteraction}
+    >
       <AnimatePresence mode="wait">
         {book.display_mode === 'reader' ? (
           <FullReaderDisplay key="reader" book={book} bytes={bytes} />
@@ -92,6 +99,6 @@ function LoadedReaderScreen({ book, bytes }: { book: Book; bytes: ArrayBuffer })
       <SelectionToolbar book={book} />
       <NotePeek />
       <DictionaryModal />
-    </>
+    </div>
   );
 }
