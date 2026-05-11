@@ -302,6 +302,29 @@ test.describe('Gutenberg panel', () => {
     expect(await getRequestedGutendexPages(page)).toEqual([]);
   });
 
+  test('manual refresh bypasses fresh cache and fetches new picks', async ({ page }) => {
+    await mockGutendexPage(page, gutendexPageWithWindowAt(4, NEXT_FAKE_BOOKS));
+    await preloadGutenbergCache(page, {
+      cursor: 4,
+      lastFetchedAt: Date.now(),
+      payload: CACHED_BOOKS,
+    });
+
+    await page.goto('/');
+    await page.waitForFunction(() => '__appTestHooks' in window);
+
+    await expect(page.getByRole('button', { name: 'Open Cached Gutenberg Pick 1' })).toBeVisible();
+    expect(await getRequestedGutendexPages(page)).toEqual([]);
+
+    await page.getByRole('button', { name: 'Refresh Project Gutenberg picks' }).click();
+
+    await expect(page.getByRole('button', { name: 'Open Next Gutenberg Pick 1' })).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(page.getByRole('button', { name: 'Open Cached Gutenberg Pick 1' })).toBeHidden();
+    expect(await getRequestedGutendexPages(page)).toEqual([1]);
+  });
+
   test('panel fetches the next 4 books when cached launch data is 24h old', async ({ page }) => {
     await mockGutendexPage(page, gutendexPageWithWindowAt(4, NEXT_FAKE_BOOKS));
     await preloadGutenbergCache(page, {

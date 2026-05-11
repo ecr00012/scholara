@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { getDb } from '../../../db/client';
 import {
   advanceCursor,
@@ -21,9 +23,12 @@ import type { PanelState } from './types';
 export function GutenbergPanel() {
   const [state, setState] = useState<PanelState>({ kind: 'loading' });
   const [selected, setSelected] = useState<GutenbergBook | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const evaluatingRef = useRef(false);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const evaluateRef = useRef<() => Promise<void>>(async () => {});
+  const evaluateRef = useRef<(options?: { force?: boolean }) => Promise<void>>(
+    async () => {},
+  );
 
   const clearRefreshTimer = useCallback(() => {
     if (refreshTimerRef.current === null) return;
@@ -39,14 +44,15 @@ export function GutenbergPanel() {
       const refreshIn = Math.max(0, lastFetchedAt + FRESHNESS_TTL_MS - now);
       refreshTimerRef.current = setTimeout(() => {
         refreshTimerRef.current = null;
-        void evaluateRef.current();
+        void evaluateRef.current({ force: true });
       }, refreshIn);
     },
     [clearRefreshTimer],
   );
 
-  const evaluate = useCallback(async () => {
+  const evaluate = useCallback(async (options?: { force?: boolean }) => {
     if (evaluatingRef.current) return;
+    const force = options?.force ?? false;
     evaluatingRef.current = true;
     try {
       const db = await getDb();
@@ -54,6 +60,7 @@ export function GutenbergPanel() {
       const hasCachedPayload = Boolean(cache.payload && cache.payload.length > 0);
 
       if (
+        !force &&
         hasCachedPayload &&
         isFresh(cache.lastFetchedAt, Date.now())
       ) {
@@ -72,7 +79,9 @@ export function GutenbergPanel() {
         return;
       }
 
-      setState({ kind: 'loading' });
+      if (!force || !hasCachedPayload) {
+        setState({ kind: 'loading' });
+      }
       const result = await fetchBooks(cache.cursor);
       if (result.kind === 'ok') {
         const fetchedAt = Date.now();
@@ -125,9 +134,30 @@ export function GutenbergPanel() {
     void evaluate();
   }, [evaluate]);
 
+  const handleManualRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    void evaluate({ force: true }).finally(() => setIsRefreshing(false));
+  }, [evaluate]);
+
   return (
     <div className="flex flex-[2] flex-col gap-3 rounded-md border border-stone-200 bg-cream p-4">
-      <PanelHeading />
+      <div className="flex items-start justify-between gap-3">
+        <PanelHeading />
+        <Button
+          aria-label="Refresh Project Gutenberg picks"
+          title="Refresh Project Gutenberg picks"
+          variant="ghost"
+          size="icon-xs"
+          className="shrink-0 text-ink-muted hover:text-ink"
+          onClick={handleManualRefresh}
+          disabled={isRefreshing}
+        >
+          <RefreshCw
+            aria-hidden="true"
+            className={isRefreshing ? 'animate-spin' : undefined}
+          />
+        </Button>
+      </div>
       {state.kind === 'loading' && <LoadingSkeleton />}
       {state.kind === 'offline' && <OfflineState />}
       {state.kind === 'api-error' && <ApiErrorState onRetry={handleRetry} />}
