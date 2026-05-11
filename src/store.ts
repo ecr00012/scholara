@@ -38,6 +38,7 @@ interface AppState extends AgentSessionSlice {
   readerSearchResults: ReaderSearchResult[];
   readerSearchStatus: ReaderSearchStatus;
   readerPreferences: ReaderPreferences;
+  currentPageTextByBook: Record<number, string>;
 
   setView: (view: AppView) => void;
   loadBooks: () => Promise<void>;
@@ -71,6 +72,7 @@ interface AppState extends AgentSessionSlice {
   ) => void;
   setReaderSearchStatus: (status: ReaderSearchStatus) => void;
   setReaderPreferences: (preferences: ReaderPreferences) => void;
+  setBookCurrentPageText: (id: number, text: string) => void;
   clearReaderSupport: () => void;
   reloadNotesForCurrentBook: () => Promise<void>;
   reloadVocabForCurrentBook: () => Promise<void>;
@@ -93,6 +95,7 @@ export const useAppStore = create<AppState>((set, get, api) => ({
     getBookById: (id) => get().books.find((book) => book.id === id) ?? null,
     getCurrentBookNotes: () => get().currentBookNotes,
     getCurrentBookVocab: () => get().currentBookVocab,
+    getCurrentBookPageText: (id) => get().currentPageTextByBook[id] ?? '',
   })(set, get, api),
 
   view: 'library',
@@ -111,6 +114,7 @@ export const useAppStore = create<AppState>((set, get, api) => ({
   readerSearchResults: [],
   readerSearchStatus: 'idle',
   readerPreferences: DEFAULT_READER_PREFERENCES,
+  currentPageTextByBook: {},
 
   setView: (view) => set({ view }),
 
@@ -201,6 +205,7 @@ export const useAppStore = create<AppState>((set, get, api) => ({
       readerSearchQuery: '',
       readerSearchResults: [],
       readerSearchStatus: 'idle',
+      currentPageTextByBook: {},
     });
     const db = await getDb();
     void booksDb.setLastOpened(db, id);
@@ -223,6 +228,7 @@ export const useAppStore = create<AppState>((set, get, api) => ({
       readerSearchQuery: '',
       readerSearchResults: [],
       readerSearchStatus: 'idle',
+      currentPageTextByBook: {},
     });
   },
 
@@ -263,6 +269,14 @@ export const useAppStore = create<AppState>((set, get, api) => ({
   setReaderSearchStatus: (status) => set({ readerSearchStatus: status }),
 
   setReaderPreferences: (preferences) => set({ readerPreferences: preferences }),
+
+  setBookCurrentPageText: (id, text) =>
+    set({
+      currentPageTextByBook: {
+        ...get().currentPageTextByBook,
+        [id]: text,
+      },
+    }),
 
   clearReaderSupport: () =>
     set({

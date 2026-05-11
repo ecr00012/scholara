@@ -70,10 +70,18 @@ function handleEvent(
   // We ignore reasoning fields per design (silently dropped).
   const d = data as {
     choices?: Array<{
+      message?: {
+        content?: string | null;
+        tool_calls?: Array<{
+          id?: string;
+          type?: 'function';
+          function?: { name?: string; arguments?: string };
+        }>;
+      };
       delta?: {
         content?: string;
         tool_calls?: Array<{
-          index: number;
+          index?: number;
           id?: string;
           type?: 'function';
           function?: { name?: string; arguments?: string };
@@ -82,16 +90,15 @@ function handleEvent(
     }>;
   };
   const delta = d?.choices?.[0]?.delta;
-  if (!delta) return;
 
-  if (typeof delta.content === 'string' && delta.content.length > 0) {
+  if (typeof delta?.content === 'string' && delta.content.length > 0) {
     appendText(delta.content);
   }
 
-  if (Array.isArray(delta.tool_calls)) {
-    for (const tc of delta.tool_calls) {
-      const idx = tc.index;
-      if (typeof idx !== 'number') continue;
+  if (Array.isArray(delta?.tool_calls)) {
+    for (let fallbackIndex = 0; fallbackIndex < delta.tool_calls.length; fallbackIndex += 1) {
+      const tc = delta.tool_calls[fallbackIndex];
+      const idx = typeof tc.index === 'number' ? tc.index : fallbackIndex;
       let entry = toolCalls.get(idx);
       if (!entry) {
         entry = { id: '', name: '', argsBuffer: '' };
@@ -105,6 +112,23 @@ function handleEvent(
       }
     }
   }
+
+  const message = d?.choices?.[0]?.message;
+  if (message && Array.isArray(message.tool_calls)) {
+    message.tool_calls.forEach((tc, idx) => {
+      let entry = toolCalls.get(idx);
+      if (!entry) {
+        entry = { id: '', name: '', argsBuffer: '' };
+        toolCalls.set(idx, entry);
+      }
+      if (typeof tc.id === 'string' && tc.id.length > 0) entry.id = tc.id;
+      const fn = tc.function;
+      if (fn) {
+        if (typeof fn.name === 'string' && fn.name.length > 0) entry.name = fn.name;
+        if (typeof fn.arguments === 'string') entry.argsBuffer = fn.arguments;
+      }
+    });
+  }
   // delta.reasoning, delta.reasoning_content, finish_reason: intentionally ignored.
 }
 
@@ -114,8 +138,8 @@ function assembleAssistant(
 ): ChatMessage {
   const sortedCalls: ToolCall[] = [...toolCalls.entries()]
     .sort((a, b) => a[0] - b[0])
-    .map(([, c]) => ({
-      id: c.id,
+    .map(([idx, c]) => ({
+      id: c.id || `call_${idx}`,
       type: 'function',
       function: { name: c.name, arguments: c.argsBuffer },
     }));

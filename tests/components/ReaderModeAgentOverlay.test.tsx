@@ -110,11 +110,21 @@ describe('ReaderModeAgentOverlay', () => {
   });
 
   it('dismisses on tap and re-shows on next user message', () => {
+    // Start mid-stream so the overlay is visible from mount.
+    setSession({
+      phase: 'streaming',
+      messages: [
+        userMsg,
+        { id: 'live', role: 'assistant', text: 'final', live: true },
+      ],
+    });
+    render(<ReaderModeAgentOverlay />);
+
+    // Settle to idle with the final text — overlay should still be visible.
     setSession({
       phase: 'idle',
       messages: [userMsg, { id: 200, role: 'assistant', text: 'final' }],
     });
-    render(<ReaderModeAgentOverlay />);
 
     const button = screen.getByLabelText('Dismiss AI response');
     expect(button).toBeInTheDocument();
@@ -131,5 +141,54 @@ describe('ReaderModeAgentOverlay', () => {
     });
 
     expect(screen.getByText('Thinking...')).toBeInTheDocument();
+  });
+
+  it('stays hidden when mounted on top of an existing idle conversation', () => {
+    // Simulates toggling agent → reader mode after a turn has settled.
+    setSession({
+      phase: 'idle',
+      messages: [userMsg, { id: 200, role: 'assistant', text: 'final' }],
+    });
+
+    render(<ReaderModeAgentOverlay />);
+
+    expect(screen.queryByLabelText('Dismiss AI response')).toBeNull();
+    expect(screen.queryByText('final')).toBeNull();
+  });
+
+  it('opens fresh when a new user message arrives after an idle mount', () => {
+    setSession({
+      phase: 'idle',
+      messages: [userMsg, { id: 200, role: 'assistant', text: 'final' }],
+    });
+
+    render(<ReaderModeAgentOverlay />);
+
+    expect(screen.queryByLabelText('Dismiss AI response')).toBeNull();
+
+    setSession({
+      phase: 'thinking',
+      messages: [
+        userMsg,
+        { id: 200, role: 'assistant', text: 'final' },
+        { id: 300, role: 'user', text: 'q2' },
+      ],
+    });
+
+    expect(screen.getByText('Thinking...')).toBeInTheDocument();
+  });
+
+  it('renders the live overlay when mounted mid-stream (cross-mode hand-off)', () => {
+    setSession({
+      phase: 'streaming',
+      messages: [
+        userMsg,
+        { id: 'live', role: 'assistant', text: 'in flight', live: true },
+      ],
+    });
+
+    render(<ReaderModeAgentOverlay />);
+
+    expect(screen.getByText('in flight')).toBeInTheDocument();
   });
 });

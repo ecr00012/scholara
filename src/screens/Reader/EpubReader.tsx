@@ -77,6 +77,9 @@ export function EpubReader({ book, bytes }: Props) {
   const setBookCurrentPosition = useAppStore(
     (state) => state.setBookCurrentPosition,
   );
+  const setBookCurrentPageText = useAppStore(
+    (state) => state.setBookCurrentPageText,
+  );
   const setBookEpubLocations = useAppStore((state) => state.setBookEpubLocations);
   const setReaderNavItems = useAppStore((state) => state.setReaderNavItems);
   const setReaderSearchResults = useAppStore(
@@ -115,9 +118,17 @@ export function EpubReader({ book, bytes }: Props) {
     const detachContentListeners: Array<() => void> = [];
     const renderedSections: Array<{ contents: Contents; section: EpubSection }> = [];
 
-    const handleRelocated = (location: { start?: { cfi?: string } }) => {
+    const handleRelocated = (location: {
+      start?: { cfi?: string };
+      end?: { cfi?: string };
+    }) => {
       const cfi = location.start?.cfi;
       if (!cfi) return;
+
+      setBookCurrentPageText(
+        book.id,
+        extractVisiblePageText(location, activeContents),
+      );
 
       if (relocateDebounce !== null) {
         window.clearTimeout(relocateDebounce);
@@ -482,6 +493,7 @@ export function EpubReader({ book, bytes }: Props) {
     book.id,
     bytes,
     clearReaderSupport,
+    setBookCurrentPageText,
     setBookCurrentPosition,
     setBookEpubLocations,
     setReaderNavItems,
@@ -654,6 +666,45 @@ function readInitialLocator(currentPosition: string | null): string | undefined 
   } catch {
     return undefined;
   }
+}
+
+function extractVisiblePageText(
+  location: { start?: { cfi?: string }; end?: { cfi?: string } },
+  activeContents: Set<Contents>,
+): string {
+  const startCfi = location.start?.cfi;
+  const endCfi = location.end?.cfi;
+  if (!startCfi) return '';
+
+  for (const contents of activeContents) {
+    try {
+      const startRange = contents.range(startCfi);
+      if (!startRange) continue;
+
+      if (!endCfi || endCfi === startCfi) {
+        const container = startRange.startContainer.parentElement;
+        return normalizePageText(container?.textContent ?? startRange.toString());
+      }
+
+      const endRange = contents.range(endCfi);
+      if (!endRange) continue;
+
+      const pageRange = contents.document.createRange();
+      pageRange.setStart(startRange.startContainer, startRange.startOffset);
+      pageRange.setEnd(endRange.startContainer, endRange.startOffset);
+      const text = normalizePageText(pageRange.toString());
+      pageRange.detach();
+      if (text) return text;
+    } catch {
+      // The relocated CFI can refer to a view epub.js has just torn down.
+    }
+  }
+
+  return '';
+}
+
+function normalizePageText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
 }
 
 function makeQuoteRange(

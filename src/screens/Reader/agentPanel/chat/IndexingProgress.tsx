@@ -19,15 +19,24 @@ export function IndexingProgress({ book, onReady }: Props) {
     setProgress({ total: 0, done: 0, phase: 'extracting' });
     (async () => {
       try {
-        await ensureBookIndexed(book, (p) => { if (!cancelled) setProgress(p); }, controller.signal);
+        await ensureBookIndexed(
+          {
+            id: book.id,
+            file_path: book.file_path,
+            file_type: book.file_type,
+          },
+          (p) => { if (!cancelled) setProgress(p); },
+          controller.signal,
+        );
         if (!cancelled) onReady();
       } catch (err) {
         if (cancelled) return;
+        if (err instanceof Error && err.message === 'aborted') return;
         setError(err instanceof Error ? err.message : String(err));
       }
     })();
     return () => { cancelled = true; controller.abort(); };
-  }, [book, retryNonce, onReady]);
+  }, [book.file_path, book.file_type, book.id, retryNonce, onReady]);
 
   if (error) {
     return (

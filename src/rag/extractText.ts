@@ -4,20 +4,24 @@ import { initPdfWorker } from '../lib/pdfWorker';
 import type { RawSegment } from './chunker';
 
 interface EpubSpineItemLike {
-  href: string;
+  href?: string;
   index?: number;
+  linear?: string;
 }
 
 interface EpubSectionLike {
   href: string;
-  load: (req: unknown) => Promise<Document>;
+  load: (req: unknown) => Promise<EpubLoadedContent>;
 }
 
 interface EpubSpineLike {
   items?: EpubSpineItemLike[];
   spineItems?: EpubSpineItemLike[];
+  each?: (callback: (item: EpubSpineItemLike) => void) => void;
   get?: (target: string | number) => EpubSectionLike | null;
 }
+
+type EpubLoadedContent = Document | XMLDocument | Element | string;
 
 export async function extractPdfSegments(bytes: ArrayBuffer): Promise<RawSegment[]> {
   initPdfWorker();
@@ -41,19 +45,36 @@ export async function extractEpubSegments(bytes: ArrayBuffer): Promise<RawSegmen
   try {
     await book.ready;
     const segments: RawSegment[] = [];
-    for (const item of getEpubSpineItems(book)) {
+    const spineItems = getEpubSpineItems(book).filter(
+      (item) => item.href && item.linear !== 'no',
+    );
+    let loadedCount = 0;
+    let emptyCount = 0;
+    let failedCount = 0;
+
+    for (const item of spineItems) {
+      if (!item.href || item.linear === 'no') continue;
       const section = getEpubSection(book, item);
-      if (!section || typeof section.load !== 'function') {
-        console.warn(`[extractEpubSegments] no loadable section for ${item.href}`);
-        continue;
-      }
       try {
-        const doc = await section.load(book.load.bind(book));
-        const text = (doc.body?.textContent ?? '').replace(/\s+/g, ' ').trim();
-        if (text) segments.push({ positionMarker: item.href, text });
+        const doc = section && typeof section.load === 'function'
+          ? await section.load(book.load.bind(book))
+          : await book.load(item.href);
+        loadedCount += 1;
+        const text = extractDocumentText(doc as EpubLoadedContent);
+        if (text) {
+          segments.push({ positionMarker: item.href, text });
+        } else {
+          emptyCount += 1;
+        }
       } catch (err) {
+        failedCount += 1;
         console.warn(`[extractEpubSegments] failed to load ${item.href}:`, err);
       }
+    }
+    if (spineItems.length > 0 && segments.length === 0) {
+      console.warn(
+        `[extractEpubSegments] no text extracted: spineItems=${spineItems.length}, loaded=${loadedCount}, empty=${emptyCount}, failed=${failedCount}`,
+      );
     }
     return segments;
   } finally {
@@ -64,9 +85,15 @@ export async function extractEpubSegments(bytes: ArrayBuffer): Promise<RawSegmen
 export function getEpubSpineItems(book: unknown): EpubSpineItemLike[] {
   const spine = (book as { spine?: EpubSpineLike }).spine;
   if (!spine) return [];
-  if (Array.isArray(spine.items)) return spine.items;
-  if (Array.isArray(spine.spineItems)) return spine.spineItems;
-  return [];
+  if (Array.isArray(spine.items)) return spine.items.filter(hasHref);
+  if (Array.isArray(spine.spineItems)) return spine.spineItems.filter(hasHref);
+  if (typeof spine.each !== 'function') return [];
+
+  const items: EpubSpineItemLike[] = [];
+  spine.each((item) => {
+    if (item.href) items.push(item);
+  });
+  return items;
 }
 
 export function resolveEpubSectionHref(
@@ -87,10 +114,29 @@ function getEpubSection(
 ): EpubSectionLike | null {
   const spine = (book as { spine?: EpubSpineLike }).spine;
   if (typeof spine?.get !== 'function') return null;
-  return spine.get(item.href) ?? (typeof item.index === 'number' ? spine.get(item.index) : null);
+  return item.href
+    ? spine.get(item.href) ?? (typeof item.index === 'number' ? spine.get(item.index) : null)
+    : null;
 }
 
 function stripFragment(href: string): string {
   const hashIdx = href.indexOf('#');
   return hashIdx === -1 ? href : href.slice(0, hashIdx);
+}
+
+export function extractDocumentText(doc: EpubLoadedContent): string {
+  let raw: string | null | undefined;
+  if (typeof doc === 'string') {
+    raw = new DOMParser().parseFromString(doc, 'text/html').body.textContent;
+  } else if ('documentElement' in doc) {
+    raw = doc.documentElement?.textContent ?? doc.body?.textContent;
+  } else {
+    raw = doc.textContent;
+  }
+
+  return (raw ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function hasHref(item: EpubSpineItemLike): item is EpubSpineItemLike & { href: string } {
+  return typeof item.href === 'string' && item.href.length > 0;
 }

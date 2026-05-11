@@ -118,6 +118,56 @@ describe('chatStream OpenAI-shape parser', () => {
     expect(msg.tool_calls?.map((tc) => tc.id)).toEqual(['call_a', 'call_b']);
   });
 
+  it('synthesizes a tool_call id when a provider omits one', async () => {
+    driveInvoke({
+      events: [
+        { event: 'message', data: { choices: [{ delta: { tool_calls: [{
+          index: 0,
+          type: 'function',
+          function: { name: 'search_book', arguments: '{"query":"whales"}' },
+        }] } }] } },
+      ],
+    });
+    const msg = await chatStream(
+      { model: 'm', messages: [{ role: 'user', content: 'hi' }] },
+      () => {},
+    );
+    expect(msg).toEqual({
+      role: 'assistant',
+      content: null,
+      tool_calls: [{
+        id: 'call_0',
+        type: 'function',
+        function: { name: 'search_book', arguments: '{"query":"whales"}' },
+      }],
+    });
+  });
+
+  it('accepts non-delta message tool_calls from streaming adapters', async () => {
+    driveInvoke({
+      events: [
+        { event: 'message', data: { choices: [{ message: { tool_calls: [{
+          id: 'call_final',
+          type: 'function',
+          function: { name: 'search_book', arguments: '{"query":"chapter"}' },
+        }] } }] } },
+      ],
+    });
+    const msg = await chatStream(
+      { model: 'm', messages: [{ role: 'user', content: 'hi' }] },
+      () => {},
+    );
+    expect(msg).toEqual({
+      role: 'assistant',
+      content: null,
+      tool_calls: [{
+        id: 'call_final',
+        type: 'function',
+        function: { name: 'search_book', arguments: '{"query":"chapter"}' },
+      }],
+    });
+  });
+
   it('propagates an error event as a thrown error', async () => {
     driveInvoke({
       events: [

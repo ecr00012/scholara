@@ -82,6 +82,7 @@ export interface AgentSessionSliceDeps {
   getBookById: (id: number) => Book | null;
   getCurrentBookNotes: () => NoteRow[];
   getCurrentBookVocab: () => VocabRow[];
+  getCurrentBookPageText?: (bookId: number) => string;
 }
 
 type AgentSessionSet<TExtra extends object> = Parameters<
@@ -233,11 +234,17 @@ export const createAgentSessionSlice =
       const bookProfile = await getProfile(db, bookScopeKey(book.id));
       const globalProfile = await getProfile(db, 'global');
       const spoilerEnabled = thread.spoiler_mode === 1;
-      const ctx = await buildToolContext(book, position, spoilerEnabled);
+      const liveCurrentPageText = deps.getCurrentBookPageText?.(book.id) ?? '';
+      const ctx = await buildToolContext(
+        book,
+        position,
+        spoilerEnabled,
+        liveCurrentPageText,
+      );
       const system = buildSystemPrompt({
         book,
         position,
-        positionLabel: book.current_position ?? '',
+        positionLabel: position?.label ?? '',
         currentPageText: ctx.currentPageText,
         spoilerMode: spoilerEnabled,
         recentNotes: deps.getCurrentBookNotes().slice(0, 10),

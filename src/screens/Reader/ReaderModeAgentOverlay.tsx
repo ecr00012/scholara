@@ -23,7 +23,13 @@ function lastUserMessageId(messages: UiMessage[]): number | string | null {
 export function ReaderModeAgentOverlay() {
   const phase = useAppStore((state) => state.agentSession.phase);
   const messages = useAppStore((state) => state.agentSession.messages);
-  const [dismissedFor, setDismissedFor] = useState<number | string | null>(null);
+  // Treat any pre-existing turn at mount as already-dismissed so toggling
+  // agent → reader doesn't pop the stale last response back up. If we mount
+  // mid-stream (cross-mode hand-off), keep null so the live overlay renders.
+  const [dismissedFor, setDismissedFor] = useState<number | string | null>(() => {
+    const session = useAppStore.getState().agentSession;
+    return session.phase === 'idle' ? lastUserMessageId(session.messages) : null;
+  });
 
   const lastAssistant = lastAssistantMessage(messages);
   const userTurnId = lastUserMessageId(messages);

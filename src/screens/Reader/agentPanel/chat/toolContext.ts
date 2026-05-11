@@ -23,6 +23,7 @@ export async function buildToolContext(
   book: Book,
   position: Position | null,
   spoilerEnabled: boolean,
+  visiblePageText = '',
 ): Promise<ToolContextBundle> {
   const db = await getDb();
   const chunks = await loadChunksForBook(db, book.id, null);
@@ -49,7 +50,9 @@ export async function buildToolContext(
     }));
   }
 
-  const currentPageText = await extractCurrentPageText(book, position);
+  const currentPageText = visiblePageText.trim()
+    ? visiblePageText
+    : await extractCurrentPageText(book, position);
   if (position && currentPageText.trim().length === 0) {
     console.warn(
       `[buildToolContext] no current page text resolved for book ${book.id} at ${position.type}:${position.locator}`,

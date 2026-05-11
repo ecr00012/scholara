@@ -107,6 +107,23 @@ describe('buildToolContext', () => {
     expect(result.toolContext.spoilerCap.enabled).toBe(false);
   });
 
+  it('prefers visible EPUB page text supplied by the reader', async () => {
+    const result = await buildToolContext(
+      book,
+      {
+        type: 'epub',
+        locator: 'epubcfi(/6/14!/4/2)',
+        fraction: 0.7,
+        label: 'Chapter 7',
+      },
+      false,
+      'The actually visible page.',
+    );
+
+    expect(result.currentPageText).toBe('The actually visible page.');
+    expect(readBookBytesMock).not.toHaveBeenCalled();
+  });
+
   it('disables spoiler cap when no current position exists', async () => {
     const result = await buildToolContext(book, null, true);
 
