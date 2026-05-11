@@ -12,15 +12,13 @@ import type { GutenbergBook } from '../../src/lib/gutenbergApi';
 const FAKE_BOOK: GutenbergBook = {
   id: 1,
   title: 'Pride and Prejudice',
-  alternative_title: null,
-  authors: [{ id: 68, name: 'Austen, Jane' }],
+  authors: [{ name: 'Austen, Jane' }],
   subjects: ['Romance'],
   bookshelves: [],
-  media_type: 'Text',
   download_count: 1,
-  issued: '1998-06-01',
-  reading_ease_score: '69.20',
   cover_image: null,
+  issued: null,
+  reading_ease_score: null,
 };
 
 describe('db/gutenbergPanel', () => {

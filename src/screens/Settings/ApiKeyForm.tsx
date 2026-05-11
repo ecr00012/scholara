@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAppStore } from '../../store';
 
-type StoreKey = 'openrouterApiKey' | 'gutenbergApiKey';
-type SaveAction = 'saveOpenrouterApiKey' | 'saveGutenbergApiKey';
+type StoreKey = 'openrouterApiKey';
+type SaveAction = 'saveOpenrouterApiKey';
 
 interface Props {
   storeKey: StoreKey;

@@ -1,164 +1,116 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { verifyKey, fetchBooks } from '../../src/lib/gutenbergApi';
 
-const FAKE_BOOKS = {
-  results: [
-    {
-      id: 1,
-      title: 'Pride and Prejudice',
-      alternative_title: null,
-      authors: [{ id: 68, name: 'Austen, Jane' }],
-      subjects: ['Romance'],
-      bookshelves: ['Best Books Ever Listings'],
-      media_type: 'Text',
-      download_count: 62904,
-      issued: '1998-06-01',
-      reading_ease_score: '69.20',
-      cover_image:
-        'https://www.gutenberg.org/cache/epub/1342/pg1342.cover.medium.jpg',
-    },
-  ],
-};
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn(),
+}));
 
-describe('lib/gutenbergApi', () => {
-  let originalFetch: typeof globalThis.fetch | undefined;
-  let originalNavigator: PropertyDescriptor | undefined;
-  let originalOnLine: PropertyDescriptor | undefined;
+import { invoke } from '@tauri-apps/api/core';
+import { fetchBooks, type GutenbergBook } from '../../src/lib/gutenbergApi';
+import { GUTENDEX_PAGE_SIZE } from '../../src/lib/gutendexPagination';
 
-  function defineNavigatorOnline(onLine: boolean) {
-    const existingNavigator = globalThis.navigator;
-    if (existingNavigator) {
-      Object.defineProperty(existingNavigator, 'onLine', {
-        configurable: true,
-        get: () => onLine,
-      });
-      return;
-    }
+function makeBook(id: number): GutenbergBook {
+  return {
+    id,
+    title: `Book ${id}`,
+    authors: [{ name: `Author ${id}` }],
+    subjects: [],
+    bookshelves: [],
+    download_count: 0,
+    cover_image: null,
+    issued: null,
+    reading_ease_score: null,
+  };
+}
 
-    Object.defineProperty(globalThis, 'navigator', {
+const PAGE_1 = Array.from({ length: GUTENDEX_PAGE_SIZE }, (_, index) => makeBook(index + 1));
+const PAGE_2 = Array.from({ length: GUTENDEX_PAGE_SIZE }, (_, index) => makeBook(index + 33));
+
+function defineNavigatorOnline(onLine: boolean) {
+  const existing = globalThis.navigator;
+  if (existing) {
+    Object.defineProperty(existing, 'onLine', {
       configurable: true,
-      value: { onLine },
+      get: () => onLine,
     });
+    return;
   }
 
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: { onLine },
+  });
+}
+
+describe('lib/gutenbergApi.fetchBooks', () => {
+  let originalNavigator: PropertyDescriptor | undefined;
+
   beforeEach(() => {
-    originalFetch = globalThis.fetch;
-    originalNavigator = Object.getOwnPropertyDescriptor(
-      globalThis,
-      'navigator',
-    );
-    originalOnLine =
-      typeof globalThis.navigator === 'undefined'
-        ? undefined
-        : Object.getOwnPropertyDescriptor(globalThis.navigator, 'onLine');
+    originalNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
     defineNavigatorOnline(true);
+    vi.mocked(invoke).mockReset();
   });
 
   afterEach(() => {
-    if (originalFetch) {
-      globalThis.fetch = originalFetch;
-    } else {
-      delete (globalThis as { fetch?: typeof fetch }).fetch;
-    }
-
     if (originalNavigator) {
       Object.defineProperty(globalThis, 'navigator', originalNavigator);
     } else {
       delete (globalThis as { navigator?: Navigator }).navigator;
     }
-
-    if (originalOnLine && globalThis.navigator) {
-      Object.defineProperty(globalThis.navigator, 'onLine', originalOnLine);
-    }
   });
 
-  it('verifyKey returns ok on 200', async () => {
-    globalThis.fetch = vi.fn(async () =>
-      new Response(JSON.stringify(FAKE_BOOKS), { status: 200 }),
-    ) as unknown as typeof fetch;
-    const result = await verifyKey('good-key');
-    expect(result.kind).toBe('ok');
-  });
-
-  it('verifyKey returns invalid-key on 401', async () => {
-    globalThis.fetch = vi.fn(async () =>
-      new Response('unauthorized', { status: 401 }),
-    ) as unknown as typeof fetch;
-    const result = await verifyKey('bad-key');
-    expect(result.kind).toBe('invalid-key');
-  });
-
-  it('verifyKey returns invalid-key on 403', async () => {
-    globalThis.fetch = vi.fn(async () =>
-      new Response('forbidden', { status: 403 }),
-    ) as unknown as typeof fetch;
-    const result = await verifyKey('bad-key');
-    expect(result.kind).toBe('invalid-key');
-  });
-
-  it('verifyKey returns api-error on 500', async () => {
-    globalThis.fetch = vi.fn(async () =>
-      new Response('boom', { status: 500 }),
-    ) as unknown as typeof fetch;
-    const result = await verifyKey('any-key');
-    expect(result).toEqual({ kind: 'api-error', status: 500 });
-  });
-
-  it('verifyKey returns api-error when fetch rejects while online', async () => {
-    globalThis.fetch = vi.fn(async () => {
-      throw new TypeError('Failed to fetch');
-    }) as unknown as typeof fetch;
-    const result = await verifyKey('any-key');
-    expect(result).toEqual({ kind: 'api-error', status: 0 });
-  });
-
-  it('verifyKey returns offline when navigator.onLine is false', async () => {
+  it('returns offline before issuing a call when navigator is offline', async () => {
     defineNavigatorOnline(false);
-    globalThis.fetch = vi.fn(async () =>
-      new Response('{}', { status: 200 }),
-    ) as unknown as typeof fetch;
-    const result = await verifyKey('any-key');
+    const result = await fetchBooks(0);
     expect(result.kind).toBe('offline');
-    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(invoke).not.toHaveBeenCalled();
   });
 
-  it('fetchBooks builds the right URL and forwards the API key header', async () => {
-    const spy = vi.fn(async () =>
-      new Response(JSON.stringify(FAKE_BOOKS), { status: 200 }),
-    );
-    globalThis.fetch = spy as unknown as typeof fetch;
-
-    const result = await fetchBooks(8, 'my-key');
-    expect(result.kind).toBe('ok');
-
-    const [url, init] = spy.mock.calls[0];
-    expect(String(url)).toBe(
-      'https://project-gutenberg-free-books-api1.p.rapidapi.com/books?ordering=-download_count&page_size=4&offset=8',
-    );
-    const headers = new Headers((init as RequestInit).headers);
-    expect(headers.get('x-rapidapi-key')).toBe('my-key');
-    expect(headers.get('x-rapidapi-host')).toBe(
-      'project-gutenberg-free-books-api1.p.rapidapi.com',
-    );
-    expect(headers.get('Content-Type')).toBe('application/json');
-  });
-
-  it('fetchBooks returns the books array on success', async () => {
-    globalThis.fetch = vi.fn(async () =>
-      new Response(JSON.stringify(FAKE_BOOKS), { status: 200 }),
-    ) as unknown as typeof fetch;
-
-    const result = await fetchBooks(0, 'k');
+  it('issues one page call for in-page windows and returns 4 books', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ books: PAGE_1 });
+    const result = await fetchBooks(8);
     if (result.kind !== 'ok') throw new Error('expected ok');
-    expect(result.books).toHaveLength(1);
-    expect(result.books[0].title).toBe('Pride and Prejudice');
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenCalledWith('fetch_gutendex_page', { page: 1 });
+    expect(result.books.map((book) => book.id)).toEqual([9, 10, 11, 12]);
   });
 
-  it('fetchBooks classifies HTTP 401 as invalid-key', async () => {
-    globalThis.fetch = vi.fn(async () =>
-      new Response('', { status: 401 }),
-    ) as unknown as typeof fetch;
-    const result = await fetchBooks(0, 'k');
-    expect(result.kind).toBe('invalid-key');
+  it('crosses to the next page when the window straddles', async () => {
+    vi.mocked(invoke)
+      .mockResolvedValueOnce({ books: PAGE_1 })
+      .mockResolvedValueOnce({ books: PAGE_2 });
+    const result = await fetchBooks(30);
+    if (result.kind !== 'ok') throw new Error('expected ok');
+    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(invoke).toHaveBeenNthCalledWith(1, 'fetch_gutendex_page', {
+      page: 1,
+    });
+    expect(invoke).toHaveBeenNthCalledWith(2, 'fetch_gutendex_page', {
+      page: 2,
+    });
+    expect(result.books.map((book) => book.id)).toEqual([31, 32, 33, 34]);
+  });
+
+  it('maps cursor 396 to page 13', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ books: PAGE_1 });
+    await fetchBooks(396);
+    expect(invoke).toHaveBeenCalledWith('fetch_gutendex_page', { page: 13 });
+  });
+
+  it("classifies the Rust 'network:' error prefix as offline", async () => {
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('network: dns failure'));
+    const result = await fetchBooks(0);
+    expect(result.kind).toBe('offline');
+  });
+
+  it("classifies the Rust 'server:' error prefix as api-error", async () => {
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('server: HTTP 503'));
+    const result = await fetchBooks(0);
+    expect(result.kind).toBe('api-error');
+  });
+
+  it("classifies 'decode:' errors as api-error", async () => {
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('decode: bad json'));
+    const result = await fetchBooks(0);
+    expect(result.kind).toBe('api-error');
   });
 });

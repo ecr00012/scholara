@@ -37,12 +37,11 @@ function Pill({ children }: { children: ReactNode }) {
 }
 
 function MetaRow({ label, value }: { label: string; value: string | null }) {
-  if (!value) return null;
   return (
     <div className="flex items-baseline gap-3 text-sm">
       <span className="w-24 shrink-0 text-ink-muted">{label}</span>
       <span className="text-ink/40">·</span>
-      <span className="text-ink">{value}</span>
+      <span className="text-ink">{value ?? '—'}</span>
     </div>
   );
 }

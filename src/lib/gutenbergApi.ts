@@ -1,92 +1,48 @@
+import { fetchGutendexPage } from '../ipc/gutendex';
+import { cursorToPageSlice, needsSecondPage, slicePages } from './gutendexPagination';
+
 export interface GutenbergAuthor {
-  id: number;
   name: string;
 }
 
 export interface GutenbergBook {
   id: number;
   title: string;
-  alternative_title: string | null;
   authors: GutenbergAuthor[];
   subjects: string[];
   bookshelves: string[];
-  media_type: string;
   download_count: number;
+  cover_image: string | null;
   issued: string | null;
   reading_ease_score: string | null;
-  cover_image: string | null;
-}
-
-interface BooksResponse {
-  results: GutenbergBook[];
 }
 
 export type FetchResult =
   | { kind: 'ok'; books: GutenbergBook[] }
-  | { kind: 'invalid-key' }
-  | { kind: 'api-error'; status: number }
+  | { kind: 'api-error' }
   | { kind: 'offline' };
 
-const RAPIDAPI_HOST = 'project-gutenberg-free-books-api1.p.rapidapi.com';
-const BASE_URL = `https://${RAPIDAPI_HOST}`;
-
 function isOffline(): boolean {
-  const nav =
-    typeof globalThis.navigator === 'undefined'
-      ? undefined
-      : globalThis.navigator;
+  const nav = typeof globalThis.navigator === 'undefined' ? undefined : globalThis.navigator;
   return typeof nav?.onLine === 'boolean' && nav.onLine === false;
 }
 
-async function callApi(url: string, key: string): Promise<FetchResult> {
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
+export async function fetchBooks(cursor: number): Promise<FetchResult> {
   if (isOffline()) return { kind: 'offline' };
-  if (typeof globalThis.fetch !== 'function') {
-    return { kind: 'api-error', status: 0 };
-  }
 
-  let resp: Response;
+  const { page, slice } = cursorToPageSlice(cursor);
+
   try {
-    resp = await globalThis.fetch(url, {
-      method: 'GET',
-      headers: {
-        'x-rapidapi-key': key,
-        'x-rapidapi-host': RAPIDAPI_HOST,
-        'Content-Type': 'application/json',
-      },
-    });
-  } catch {
-    return { kind: 'api-error', status: 0 };
+    const firstPage = await fetchGutendexPage(page);
+    const secondPage = needsSecondPage(slice) ? await fetchGutendexPage(page + 1) : undefined;
+    return { kind: 'ok', books: slicePages(slice, firstPage, secondPage) };
+  } catch (err) {
+    if (isOffline()) return { kind: 'offline' };
+    return errorMessage(err).startsWith('network:') ? { kind: 'offline' } : { kind: 'api-error' };
   }
-
-  if (resp.status === 401 || resp.status === 403) {
-    return { kind: 'invalid-key' };
-  }
-  if (!resp.ok) {
-    return { kind: 'api-error', status: resp.status };
-  }
-
-  let json: BooksResponse;
-  try {
-    json = (await resp.json()) as BooksResponse;
-  } catch {
-    return { kind: 'api-error', status: resp.status };
-  }
-
-  if (!json || !Array.isArray(json.results)) {
-    return { kind: 'api-error', status: resp.status };
-  }
-
-  return { kind: 'ok', books: json.results };
-}
-
-export async function verifyKey(key: string): Promise<FetchResult> {
-  return callApi(`${BASE_URL}/books?page_size=1`, key);
-}
-
-export async function fetchBooks(
-  offset: number,
-  key: string,
-): Promise<FetchResult> {
-  const url = `${BASE_URL}/books?ordering=-download_count&page_size=4&offset=${offset}`;
-  return callApi(url, key);
 }

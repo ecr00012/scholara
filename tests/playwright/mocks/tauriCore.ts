@@ -23,6 +23,8 @@ interface ChatOneshotScript {
   error?: string;
 }
 
+type InvokeOverride = (args: Record<string, unknown>) => unknown | Promise<unknown>;
+
 const dragDropListeners = new Set<ListenCallback<DragDropPayload>>();
 const savedSecrets = getSecrets();
 
@@ -40,6 +42,12 @@ export class Channel<T> {
 }
 
 export async function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
+  const overrides = getInvokeOverrides();
+  const override = overrides[cmd];
+  if (override) {
+    return (await override(args)) as T;
+  }
+
   const fixtures = getFixtures();
 
   switch (cmd) {
@@ -125,6 +133,8 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         file_type: 'epub',
       } as T;
     }
+    case 'fetch_gutendex_page':
+      return { books: [] } as T;
     case 'chat_stream': {
       const channel = args.onEvent as Channel<ChatStreamEvent> | undefined;
       const script = getChatStreamScript();
@@ -192,6 +202,13 @@ function getChatOneshotScript(): ChatOneshotScript {
   return target.__SCHOLARA_CHAT_ONESHOT__ ?? { text: '' };
 }
 
+function getInvokeOverrides(): Record<string, InvokeOverride | undefined> {
+  const target = globalThis as typeof globalThis & {
+    __SCHOLARA_INVOKE_OVERRIDES__?: Record<string, InvokeOverride | undefined>;
+  };
+  return target.__SCHOLARA_INVOKE_OVERRIDES__ ?? {};
+}
+
 export function convertFileSrc(path: string): string {
   return `file://${path}`;
 }
@@ -233,14 +250,10 @@ function getFixtures(): MockFixtureMap {
 function getSecrets(): Record<string, string> {
   const target = globalThis as typeof globalThis & {
     __SCHOLARA_SECRETS__?: Record<string, string>;
-    __SCHOLARA_GUTENBERG_KEY__?: string;
   };
 
   if (!target.__SCHOLARA_SECRETS__) {
     target.__SCHOLARA_SECRETS__ = {};
-  }
-  if (typeof target.__SCHOLARA_GUTENBERG_KEY__ === 'string') {
-    target.__SCHOLARA_SECRETS__.gutenberg = target.__SCHOLARA_GUTENBERG_KEY__;
   }
   return target.__SCHOLARA_SECRETS__;
 }

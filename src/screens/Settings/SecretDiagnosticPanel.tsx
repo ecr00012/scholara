@@ -14,12 +14,12 @@ export function SecretDiagnosticPanel() {
   const run = async () => {
     setRunning(true);
     try {
-      setResult(await diagnoseSecret('gutenberg'));
+      setResult(await diagnoseSecret('openrouter'));
     } catch (err) {
       setResult({
         service: 'scholara',
-        account: 'gutenberg_api_key',
-        diagnostic_account: 'gutenberg_diagnostic_api_key',
+        account: 'openrouter_api_key',
+        diagnostic_account: 'openrouter_diagnostic_api_key',
         existing_entry: false,
         status: 'invoke_failed',
         error: err instanceof Error ? err.message : String(err),
@@ -32,7 +32,7 @@ export function SecretDiagnosticPanel() {
   return (
     <section className="space-y-3">
       <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-muted">
-        Gutenberg Keychain Diagnostic
+        OpenRouter Keychain Diagnostic
       </h2>
       <Button size="sm" variant="outline" onClick={run} disabled={running}>
         {running ? 'Checking…' : 'Run check'}

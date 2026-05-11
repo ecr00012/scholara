@@ -7,7 +7,6 @@ const SERVICE: &str = "scholara";
 fn account_for(name: &str) -> Result<&'static str, String> {
     match name {
         "openrouter" => Ok("openrouter_api_key"),
-        "gutenberg" => Ok("gutenberg_api_key"),
         _ => Err(format!("Unknown secret name={name}")),
     }
 }

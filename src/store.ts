@@ -25,8 +25,6 @@ interface AppState extends AgentSessionSlice {
   view: AppView;
   books: Book[];
   openrouterApiKey: string | null;
-  gutenbergApiKey: string | null;
-  gutenbergApiKeyError: string | null;
   apiKeyBannerDismissed: boolean;
   currentBookId: number | null;
   currentBookNotes: NoteRow[];
@@ -54,8 +52,6 @@ interface AppState extends AgentSessionSlice {
   deleteBook: (id: number) => Promise<void>;
   loadOpenrouterApiKey: () => Promise<void>;
   saveOpenrouterApiKey: (key: string) => Promise<void>;
-  loadGutenbergApiKey: () => Promise<void>;
-  saveGutenbergApiKey: (key: string) => Promise<void>;
   dismissApiKeyBanner: () => void;
   openBook: (id: number) => Promise<void>;
   closeBook: () => void;
@@ -101,8 +97,6 @@ export const useAppStore = create<AppState>((set, get, api) => ({
   view: 'library',
   books: [],
   openrouterApiKey: null,
-  gutenbergApiKey: null,
-  gutenbergApiKeyError: null,
   apiKeyBannerDismissed: false,
   currentBookId: null,
   currentBookNotes: [],
@@ -160,35 +154,6 @@ export const useAppStore = create<AppState>((set, get, api) => ({
   saveOpenrouterApiKey: async (key) => {
     await secretsIpc.setSecret('openrouter', key);
     set({ openrouterApiKey: key === '' ? null : key });
-  },
-
-  loadGutenbergApiKey: async () => {
-    try {
-      const gutenbergApiKey = await secretsIpc.getSecret('gutenberg');
-      set({ gutenbergApiKey, gutenbergApiKeyError: null });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.warn('Could not load Gutenberg API key:', err);
-      set({
-        gutenbergApiKeyError: `Could not load your Project Gutenberg API key from the system keychain. ${message}`,
-      });
-    }
-  },
-
-  saveGutenbergApiKey: async (key) => {
-    try {
-      await secretsIpc.setSecret('gutenberg', key);
-      set({
-        gutenbergApiKey: key === '' ? null : key,
-        gutenbergApiKeyError: null,
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      set({
-        gutenbergApiKeyError: `Could not save your Project Gutenberg API key to the system keychain. ${message}`,
-      });
-      throw err;
-    }
   },
 
   dismissApiKeyBanner: () => set({ apiKeyBannerDismissed: true }),

@@ -1,12 +1,13 @@
 mod commands;
 mod migrate_v6;
 
-use commands::openrouter::{chat_oneshot, chat_stream};
 use commands::books::{
     app_data_dir_path, copy_uploaded_file, delete_book_files, read_book_bytes,
     reveal_in_file_manager, save_cover_bytes,
 };
 use commands::gutenberg::download_gutenberg_epub;
+use commands::gutendex::fetch_gutendex_page;
+use commands::openrouter::{chat_oneshot, chat_stream};
 use commands::secrets::{diagnose_secret, get_secret, set_secret};
 use commands::wordnet::{lookup_wordnet, WordnetState};
 use tauri::Manager;
@@ -85,6 +86,7 @@ pub fn run() {
             set_secret,
             diagnose_secret,
             download_gutenberg_epub,
+            fetch_gutendex_page,
             lookup_wordnet,
             chat_stream,
             chat_oneshot,
