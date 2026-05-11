@@ -28,10 +28,24 @@ export async function searchBook(p: SearchBookParams): Promise<SearchBookResult[
   if (chunks.length === 0) return [];
 
   const qVec = await embedOne(p.query);
-  const scored = chunks.map((c) => ({
-    item: c,
-    score: cosine(qVec, bytesToFloat32(c.embedding as unknown as Uint8Array)),
-  }));
+  if (qVec.length === 0) {
+    throw new Error('query embedding returned an empty vector');
+  }
+
+  const scored = chunks.map((c) => {
+    const chunkVec = bytesToFloat32(
+      c.embedding as unknown as Uint8Array | number[] | ArrayBuffer | string,
+    );
+    if (chunkVec.length !== qVec.length) {
+      throw new Error(
+        `stored embedding dimension mismatch for chunk ${c.id}: expected ${qVec.length}, got ${chunkVec.length}`,
+      );
+    }
+    return {
+      item: c,
+      score: cosine(qVec, chunkVec),
+    };
+  });
   return topK(scored, k).map((s) => ({
     position_marker: s.item.position_marker,
     text: s.item.text,

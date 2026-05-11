@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Book } from '../../../../db/types';
 import { IndexingProgress } from './IndexingProgress';
 import { MessageList } from './MessageList';
@@ -8,7 +8,9 @@ import { HistoryPopover } from './HistoryPopover';
 import { EmptyState } from './EmptyState';
 import { getDb } from '../../../../db/client';
 import { getIndexState } from '../../../../db/bookIndexState';
+import { countChunksForBook } from '../../../../db/bookChunks';
 import { useAppStore } from '../../../../store';
+import { EMBEDDER_INDEX_ID } from '../../../../rag/embedder';
 
 interface Props {
   book: Book;
@@ -22,20 +24,26 @@ export function AiChatRoot({ book }: Props) {
   const newThread = useAppStore((s) => s.newAgentThread);
   const loadThread = useAppStore((s) => s.loadAgentThread);
   const [indexReady, setIndexReady] = useState<boolean | null>(null);
+  const handleIndexReady = useCallback(() => setIndexReady(true), []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const db = await getDb();
       const state = await getIndexState(db, book.id);
+      const hasCurrentIndex =
+        state?.status === 'ready' && state.embedder_model === EMBEDDER_INDEX_ID;
+      const chunkCount = hasCurrentIndex
+        ? await countChunksForBook(db, book.id)
+        : 0;
       if (cancelled) return;
-      setIndexReady(state?.status === 'ready');
+      setIndexReady(hasCurrentIndex && chunkCount > 0);
     })();
     return () => { cancelled = true; };
   }, [book.id]);
 
   if (indexReady === null) return null;
-  if (!indexReady) return <IndexingProgress book={book} onReady={() => setIndexReady(true)} />;
+  if (!indexReady) return <IndexingProgress book={book} onReady={handleIndexReady} />;
 
   return (
     <div className="flex h-full min-h-0 flex-col">

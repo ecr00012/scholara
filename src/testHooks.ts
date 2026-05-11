@@ -140,7 +140,7 @@ export function installTestHooks(): void {
         book_id: input.book_id,
         status: 'ready',
         chunk_count: chunks.length,
-        embedder_model: 'Xenova/all-MiniLM-L6-v2',
+        embedder_model: 'Xenova/all-MiniLM-L6-v2:base64-embeddings-v1',
         content_hash: 'e2e-stub',
         error: null,
       });

@@ -90,8 +90,8 @@ export interface BookChunkRow {
   ordinal: number;
   position_marker: string;
   text: string;
-  /** Float32 little-endian bytes; length = 384 * 4 = 1536. */
-  embedding: Uint8Array;
+  /** Base64-encoded Float32 little-endian bytes; legacy rows may be raw bytes. */
+  embedding: string | Uint8Array | number[] | ArrayBuffer;
   created_at: string;
 }
 

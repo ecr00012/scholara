@@ -8,7 +8,7 @@ import { getIndexState, upsertIndexState } from '../db/bookIndexState';
 import { readBookBytes } from '../ipc/files';
 import { hashBytes } from '../lib/hash';
 import type { Book } from '../db/types';
-import { embed, EMBEDDER_MODEL_ID } from './embedder';
+import { embed, EMBEDDER_INDEX_ID } from './embedder';
 import { chunkSegments } from './chunker';
 import { extractPdfSegments, extractEpubSegments } from './extractText';
 
@@ -19,6 +19,7 @@ export interface IndexProgress {
 }
 
 export type IndexProgressCb = (p: IndexProgress) => void;
+export type IndexableBook = Pick<Book, 'id' | 'file_path' | 'file_type'>;
 
 const EMBED_BATCH = 16;
 
@@ -27,7 +28,7 @@ const EMBED_BATCH = 16;
  * Throws on failure (after marking state='failed').
  */
 export async function ensureBookIndexed(
-  book: Book,
+  book: IndexableBook,
   onProgress: IndexProgressCb,
   signal?: AbortSignal,
 ): Promise<void> {
@@ -39,7 +40,7 @@ export async function ensureBookIndexed(
   if (
     existing?.status === 'ready' &&
     existing.content_hash === hash &&
-    existing.embedder_model === EMBEDDER_MODEL_ID &&
+    existing.embedder_model === EMBEDDER_INDEX_ID &&
     (existing.chunk_count ?? 0) > 0
   ) {
     onProgress({
@@ -54,7 +55,7 @@ export async function ensureBookIndexed(
     book_id: book.id,
     status: 'indexing',
     chunk_count: null,
-    embedder_model: EMBEDDER_MODEL_ID,
+    embedder_model: EMBEDDER_INDEX_ID,
     content_hash: hash,
     error: null,
   });
@@ -69,6 +70,11 @@ export async function ensureBookIndexed(
 
     const chunks = chunkSegments(segments);
     const total = chunks.length;
+    if (total === 0) {
+      throw new Error(
+        `No text chunks were extracted from this ${book.file_type.toUpperCase()} book.`,
+      );
+    }
     onProgress({ total, done: 0, phase: 'embedding' });
 
     // Refresh storage in case of re-index.
@@ -100,18 +106,22 @@ export async function ensureBookIndexed(
       book_id: book.id,
       status: 'ready',
       chunk_count: finalCount,
-      embedder_model: EMBEDDER_MODEL_ID,
+      embedder_model: EMBEDDER_INDEX_ID,
       content_hash: hash,
       error: null,
     });
     onProgress({ total: finalCount, done: finalCount, phase: 'done' });
   } catch (err) {
+    if (err instanceof Error && err.message === 'aborted') {
+      throw err;
+    }
+
     const message = err instanceof Error ? err.message : String(err);
     await upsertIndexState(db, {
       book_id: book.id,
       status: 'failed',
       chunk_count: null,
-      embedder_model: EMBEDDER_MODEL_ID,
+      embedder_model: EMBEDDER_INDEX_ID,
       content_hash: hash,
       error: message,
     });

@@ -49,6 +49,7 @@ vi.mock('../../src/rag/extractText', () => ({
 vi.mock('../../src/rag/chunker', () => ({ chunkSegments: chunkSegmentsMock }));
 vi.mock('../../src/rag/embedder', () => ({
   EMBEDDER_MODEL_ID: 'Xenova/all-MiniLM-L6-v2',
+  EMBEDDER_INDEX_ID: 'Xenova/all-MiniLM-L6-v2:base64-embeddings-v1',
   embed: embedMock,
 }));
 
@@ -122,6 +123,53 @@ describe('ensureBookIndexed', () => {
         book_id: book.id,
         status: 'ready',
         chunk_count: 1,
+      }),
+    );
+  });
+
+  it('fails instead of marking an empty extraction as ready', async () => {
+    extractEpubSegmentsMock.mockResolvedValueOnce([]);
+    chunkSegmentsMock.mockReturnValueOnce([]);
+    const onProgress = vi.fn();
+
+    await expect(ensureBookIndexed(book, onProgress)).rejects.toThrow(
+      'No text chunks were extracted',
+    );
+
+    expect(deleteChunksForBookMock).not.toHaveBeenCalled();
+    expect(insertChunksMock).not.toHaveBeenCalled();
+    expect(upsertIndexStateMock).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        book_id: book.id,
+        status: 'failed',
+        chunk_count: null,
+        error: expect.stringContaining('No text chunks were extracted'),
+      }),
+    );
+  });
+
+  it('does not record cancelled indexing as a failed index', async () => {
+    const controller = new AbortController();
+    extractEpubSegmentsMock.mockImplementationOnce(async () => {
+      controller.abort();
+      return [{ positionMarker: 'chapter-7.xhtml', text: 'Chapter 7 text.' }];
+    });
+    const onProgress = vi.fn();
+
+    await expect(
+      ensureBookIndexed(book, onProgress, controller.signal),
+    ).rejects.toThrow('aborted');
+
+    expect(deleteChunksForBookMock).not.toHaveBeenCalled();
+    expect(insertChunksMock).not.toHaveBeenCalled();
+    expect(upsertIndexStateMock).toHaveBeenCalledTimes(1);
+    expect(upsertIndexStateMock).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        book_id: book.id,
+        status: 'indexing',
+        error: null,
       }),
     );
   });

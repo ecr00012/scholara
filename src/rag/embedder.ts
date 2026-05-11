@@ -1,7 +1,9 @@
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { resolveResource } from '@tauri-apps/api/path';
 import type { FeatureExtractionPipeline } from '@xenova/transformers';
 
 export const EMBEDDER_MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
+export const EMBEDDER_INDEX_ID = `${EMBEDDER_MODEL_ID}:base64-embeddings-v1`;
 export const EMBEDDING_DIM = 384;
 
 let pipelinePromise: Promise<FeatureExtractionPipeline> | null = null;
@@ -11,11 +13,14 @@ export async function getEmbedder(): Promise<FeatureExtractionPipeline> {
     pipelinePromise = (async () => {
       // Dynamic import isolates transformers.js (and its onnxruntime-web chain)
       // so a failure here doesn't crash the renderer at module-eval time.
-      const { env, pipeline } = await import('@xenova/transformers');
+      const { env, pipeline } = await import(
+        '@xenova/transformers/dist/transformers.js'
+      );
       const modelsDir = await resolveResource('resources/models');
+      const modelsUrl = convertFileSrc(modelsDir, 'asset');
       env.allowRemoteModels = false;
       env.allowLocalModels = true;
-      env.localModelPath = modelsDir + '/';
+      env.localModelPath = modelsUrl.endsWith('/') ? modelsUrl : modelsUrl + '/';
       env.useBrowserCache = false;
       return (await pipeline('feature-extraction', EMBEDDER_MODEL_ID, {
         quantized: true,

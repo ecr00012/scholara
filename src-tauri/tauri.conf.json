@@ -28,7 +28,8 @@
           "$APPDATA/covers/**",
           "$APPDATA/Scholara/covers/**",
           "$APPLOCALDATA/covers/**",
-          "$APPLOCALDATA/Scholara/covers/**"
+          "$APPLOCALDATA/Scholara/covers/**",
+          "$RESOURCE/resources/models/**"
         ]
       }
     }
