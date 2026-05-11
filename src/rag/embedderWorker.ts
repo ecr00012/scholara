@@ -23,6 +23,11 @@ interface EmbedErrorMessage {
 let pipelinePromise: Promise<FeatureExtractionPipeline> | null = null;
 let configuredLocalModelPath: string | null = null;
 
+const workerSelf = self as unknown as {
+  onmessage: ((event: MessageEvent<EmbedRequestMessage>) => void) | null;
+  postMessage: (message: unknown, transfer?: Transferable[]) => void;
+};
+
 async function getWorkerEmbedder(
   localModelPath: string,
 ): Promise<FeatureExtractionPipeline> {
@@ -46,7 +51,7 @@ async function getWorkerEmbedder(
   return pipelinePromise;
 }
 
-self.onmessage = async (event: MessageEvent<EmbedRequestMessage>) => {
+workerSelf.onmessage = async (event: MessageEvent<EmbedRequestMessage>) => {
   const message = event.data;
   if (message.type !== 'embed') return;
 
@@ -69,13 +74,13 @@ self.onmessage = async (event: MessageEvent<EmbedRequestMessage>) => {
       type: 'result',
       vectors,
     };
-    self.postMessage(response, vectors);
+    workerSelf.postMessage(response, vectors);
   } catch (err) {
     const response: EmbedErrorMessage = {
       id: message.id,
       type: 'error',
       error: err instanceof Error ? err.message : String(err),
     };
-    self.postMessage(response);
+    workerSelf.postMessage(response);
   }
 };

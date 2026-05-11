@@ -42,6 +42,10 @@ export default defineConfig(async () => ({
     },
   },
 
+  worker: {
+    format: 'es',
+  },
+
   clearScreen: false,
   server: {
     port: 1420,
