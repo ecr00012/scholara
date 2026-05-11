@@ -14,7 +14,10 @@ const {
   extractEpubSegmentsMock,
   extractPdfSegmentsMock,
   chunkSegmentsMock,
-  embedMock,
+  embedForIndexingMock,
+  yieldToUiMock,
+  waitForIndexingIdleMock,
+  throwIfAbortedMock,
 } = vi.hoisted(() => ({
   getDbMock: vi.fn(),
   readBookBytesMock: vi.fn(),
@@ -27,7 +30,12 @@ const {
   extractEpubSegmentsMock: vi.fn(),
   extractPdfSegmentsMock: vi.fn(),
   chunkSegmentsMock: vi.fn(),
-  embedMock: vi.fn(),
+  embedForIndexingMock: vi.fn(),
+  yieldToUiMock: vi.fn(),
+  waitForIndexingIdleMock: vi.fn(),
+  throwIfAbortedMock: vi.fn((signal?: AbortSignal) => {
+    if (signal?.aborted) throw new Error('aborted');
+  }),
 }));
 
 vi.mock('../../src/db/client', () => ({ getDb: getDbMock }));
@@ -50,7 +58,14 @@ vi.mock('../../src/rag/chunker', () => ({ chunkSegments: chunkSegmentsMock }));
 vi.mock('../../src/rag/embedder', () => ({
   EMBEDDER_MODEL_ID: 'Xenova/all-MiniLM-L6-v2',
   EMBEDDER_INDEX_ID: 'Xenova/all-MiniLM-L6-v2:base64-embeddings-v1',
-  embed: embedMock,
+}));
+vi.mock('../../src/rag/embedForIndexing', () => ({
+  embedForIndexing: embedForIndexingMock,
+}));
+vi.mock('../../src/rag/scheduler', () => ({
+  yieldToUi: yieldToUiMock,
+  waitForIndexingIdle: waitForIndexingIdleMock,
+  throwIfAborted: throwIfAbortedMock,
 }));
 
 import { ensureBookIndexed } from '../../src/rag/index';
@@ -87,7 +102,9 @@ beforeEach(() => {
   chunkSegmentsMock.mockReturnValue([
     { ordinal: 0, positionMarker: 'chapter-7.xhtml', text: 'Chapter 7 text.' },
   ]);
-  embedMock.mockResolvedValue([new Float32Array(384)]);
+  embedForIndexingMock.mockResolvedValue([new Float32Array(384)]);
+  yieldToUiMock.mockResolvedValue(undefined);
+  waitForIndexingIdleMock.mockResolvedValue(undefined);
 });
 
 describe('ensureBookIndexed', () => {
@@ -172,5 +189,32 @@ describe('ensureBookIndexed', () => {
         error: null,
       }),
     );
+  });
+
+  it('yields and checks idle between embedding batches', async () => {
+    chunkSegmentsMock.mockReturnValue(
+      Array.from({ length: 17 }, (_, i) => ({
+        ordinal: i,
+        positionMarker: `p${i + 1}`,
+        text: `Chunk ${i + 1}`,
+      })),
+    );
+    embedForIndexingMock.mockImplementation(async (texts: string[]) =>
+      texts.map(() => new Float32Array(384)),
+    );
+    countChunksForBookMock.mockResolvedValueOnce(17);
+    const onProgress = vi.fn();
+
+    await ensureBookIndexed(book, onProgress);
+
+    expect(embedForIndexingMock).toHaveBeenCalledTimes(3);
+    expect(waitForIndexingIdleMock).toHaveBeenCalledTimes(3);
+    expect(yieldToUiMock).toHaveBeenCalledTimes(3);
+    expect(insertChunksMock).toHaveBeenCalledTimes(3);
+    expect(onProgress).toHaveBeenCalledWith({
+      total: 17,
+      done: 17,
+      phase: 'embedding',
+    });
   });
 });

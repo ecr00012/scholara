@@ -1,0 +1,2 @@
+export const INDEXING_EMBED_BATCH_SIZE = 8;
+export const INDEXING_IDLE_DELAY_MS = 500;

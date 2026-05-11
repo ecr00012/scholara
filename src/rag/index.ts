@@ -8,9 +8,12 @@ import { getIndexState, upsertIndexState } from '../db/bookIndexState';
 import { readBookBytes } from '../ipc/files';
 import { hashBytes } from '../lib/hash';
 import type { Book } from '../db/types';
-import { embed, EMBEDDER_INDEX_ID } from './embedder';
+import { EMBEDDER_INDEX_ID } from './embedder';
+import { embedForIndexing } from './embedForIndexing';
 import { chunkSegments } from './chunker';
 import { extractPdfSegments, extractEpubSegments } from './extractText';
+import { INDEXING_EMBED_BATCH_SIZE } from './indexingConfig';
+import { throwIfAborted, waitForIndexingIdle, yieldToUi } from './scheduler';
 
 export interface IndexProgress {
   total: number;
@@ -20,8 +23,6 @@ export interface IndexProgress {
 
 export type IndexProgressCb = (p: IndexProgress) => void;
 export type IndexableBook = Pick<Book, 'id' | 'file_path' | 'file_type'>;
-
-const EMBED_BATCH = 16;
 
 /**
  * Indexes a book if needed. No-op if status='ready' and content_hash matches.
@@ -66,7 +67,7 @@ export async function ensureBookIndexed(
       book.file_type === 'pdf'
         ? await extractPdfSegments(bytes)
         : await extractEpubSegments(bytes);
-    if (signal?.aborted) throw new Error('aborted');
+    throwIfAborted(signal);
 
     const chunks = chunkSegments(segments);
     const total = chunks.length;
@@ -80,10 +81,15 @@ export async function ensureBookIndexed(
     // Refresh storage in case of re-index.
     await deleteChunksForBook(db, book.id);
 
-    for (let i = 0; i < chunks.length; i += EMBED_BATCH) {
-      if (signal?.aborted) throw new Error('aborted');
-      const batch = chunks.slice(i, i + EMBED_BATCH);
-      const vectors = await embed(batch.map((c) => c.text));
+    for (let i = 0; i < chunks.length; i += INDEXING_EMBED_BATCH_SIZE) {
+      throwIfAborted(signal);
+      await waitForIndexingIdle(signal);
+
+      const batch = chunks.slice(i, i + INDEXING_EMBED_BATCH_SIZE);
+      const vectors = await embedForIndexing(
+        batch.map((c) => c.text),
+        signal,
+      );
       await insertChunks(
         db,
         batch.map((c, j) => ({
@@ -99,6 +105,8 @@ export async function ensureBookIndexed(
         done: Math.min(i + batch.length, total),
         phase: 'embedding',
       });
+
+      await yieldToUi(signal);
     }
 
     const finalCount = await countChunksForBook(db, book.id);
