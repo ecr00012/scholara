@@ -1,8 +1,8 @@
-import { embed } from './embedder';
+import { embedWithWorkerForIndexing } from './workerEmbedderClient';
 
 export async function embedForIndexing(
   texts: string[],
-  _signal?: AbortSignal,
+  signal?: AbortSignal,
 ): Promise<Float32Array[]> {
-  return embed(texts);
+  return embedWithWorkerForIndexing(texts, signal);
 }
