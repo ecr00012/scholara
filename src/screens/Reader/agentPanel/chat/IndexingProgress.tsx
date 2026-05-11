@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { Book } from '../../../../db/types';
-import { ensureBookIndexed, type IndexProgress } from '../../../../rag/index';
+import {
+  getBackgroundIndexSnapshot,
+  startBackgroundIndexing,
+  subscribeToBackgroundIndexing,
+  type BackgroundIndexSnapshot,
+} from '../../../../rag/backgroundIndexing';
 
 interface Props {
   book: Book;
@@ -8,41 +13,31 @@ interface Props {
 }
 
 export function IndexingProgress({ book, onReady }: Props) {
-  const [progress, setProgress] = useState<IndexProgress>({ total: 0, done: 0, phase: 'extracting' });
-  const [error, setError] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<BackgroundIndexSnapshot>(() =>
+    getBackgroundIndexSnapshot(book.id),
+  );
   const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-    setError(null);
-    setProgress({ total: 0, done: 0, phase: 'extracting' });
-    (async () => {
-      try {
-        await ensureBookIndexed(
-          {
-            id: book.id,
-            file_path: book.file_path,
-            file_type: book.file_type,
-          },
-          (p) => { if (!cancelled) setProgress(p); },
-          controller.signal,
-        );
-        if (!cancelled) onReady();
-      } catch (err) {
-        if (cancelled) return;
-        if (err instanceof Error && err.message === 'aborted') return;
-        setError(err instanceof Error ? err.message : String(err));
+    const unsubscribe = subscribeToBackgroundIndexing(book.id, (next) => {
+      setSnapshot(next);
+      if (next.status === 'ready') {
+        onReady();
       }
-    })();
-    return () => { cancelled = true; controller.abort(); };
+    });
+    void startBackgroundIndexing({
+      id: book.id,
+      file_path: book.file_path,
+      file_type: book.file_type,
+    });
+    return unsubscribe;
   }, [book.file_path, book.file_type, book.id, retryNonce, onReady]);
 
-  if (error) {
+  if (snapshot.status === 'error') {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
         <p className="font-serif text-lg text-ink">Indexing failed.</p>
-        <p className="max-w-sm text-sm text-ink-muted">{error}</p>
+        <p className="max-w-sm text-sm text-ink-muted">{snapshot.error}</p>
         <button
           type="button"
           className="rounded-md bg-accent-orange px-3 py-1.5 text-sm text-white hover:opacity-90"
@@ -54,6 +49,7 @@ export function IndexingProgress({ book, onReady }: Props) {
     );
   }
 
+  const { progress } = snapshot;
   const pct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">

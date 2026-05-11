@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Book } from '../../db/types';
 import { useAppStore } from '../../store';
 import { readBookBytes } from '../../ipc/files';
+import { startBackgroundIndexing } from '../../rag/backgroundIndexing';
 import { markIndexingInteraction } from '../../rag/indexingActivity';
 import { AgentDisplay } from './AgentDisplay';
 import { DictionaryModal } from './DictionaryModal';
@@ -80,6 +81,14 @@ function LoadedReaderScreen({ book, bytes }: { book: Book; bytes: ArrayBuffer })
       document.body.style.overflow = previousBodyOverflow;
     };
   }, []);
+
+  useEffect(() => {
+    void startBackgroundIndexing({
+      id: book.id,
+      file_path: book.file_path,
+      file_type: book.file_type,
+    });
+  }, [book.file_path, book.file_type, book.id]);
 
   return (
     <div
