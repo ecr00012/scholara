@@ -240,4 +240,4 @@ When AI chat is used, the selected messages and any relevant retrieved context a
 
 ## License
 
-No license file is currently included. Add one before publishing or distributing Scholara publicly.
+Scholara is licensed under the MIT License. See [LICENSE](LICENSE) for details.
