@@ -22,19 +22,19 @@ The app is built as a Tauri desktop application: your library files, notes, pref
 
 Scholara uses a Rust desktop shell with a modern React front end.
 
-| Area | Technology |
-| --- | --- |
-| Desktop runtime | Tauri 2 |
-| Native backend | Rust, Tokio, reqwest, rusqlite |
-| Front end | React 19, TypeScript, Vite |
-| Styling | Tailwind CSS, shadcn-style components, Base UI, lucide-react |
-| State | Zustand |
-| Database | SQLite via `@tauri-apps/plugin-sql` |
-| PDF rendering and extraction | `pdfjs-dist` |
-| EPUB reading and extraction | `epubjs` |
-| Local embeddings | `@xenova/transformers` with ONNX |
-| AI chat | OpenRouter Chat Completions API |
-| Testing | Vitest, Testing Library, Playwright |
+| Area                         | Technology                                                   |
+| ---------------------------- | ------------------------------------------------------------ |
+| Desktop runtime              | Tauri 2                                                      |
+| Native backend               | Rust, Tokio, reqwest, rusqlite                               |
+| Front end                    | React 19, TypeScript, Vite                                   |
+| Styling                      | Tailwind CSS, shadcn-style components, Base UI, lucide-react |
+| State                        | Zustand                                                      |
+| Database                     | SQLite via `@tauri-apps/plugin-sql`                          |
+| PDF rendering and extraction | `pdfjs-dist`                                                 |
+| EPUB reading and extraction  | `epubjs`                                                     |
+| Local embeddings             | `@xenova/transformers` with ONNX                             |
+| AI chat                      | OpenRouter Chat Completions API                              |
+| Testing                      | Vitest, Testing Library, Playwright                          |
 
 ## AI and OpenRouter
 
@@ -173,20 +173,20 @@ The key is saved in the native keychain. You do not need a `.env` file for norma
 
 ## Scripts
 
-| Command | Description |
-| --- | --- |
-| `npm run dev` | Start the Vite dev server only |
-| `npm run tauri:dev` | Start the full Tauri desktop app |
-| `npm run build` | Type-check and build the web assets |
-| `npm run tauri:build` | Build a distributable desktop app |
-| `npm run test` | Run Vitest unit tests |
-| `npm run test:watch` | Run Vitest in watch mode |
-| `npm run test:e2e` | Build the e2e app and run Playwright tests |
-| `npm run test:e2e:ui` | Run Playwright with the UI |
-| `npm run test:all` | Run unit and e2e tests |
-| `npm run build:wordnet` | Build the bundled WordNet SQLite resource |
-| `npm run lint` | Run ESLint |
-| `npm run format` | Format the repository with Prettier |
+| Command                 | Description                                |
+| ----------------------- | ------------------------------------------ |
+| `npm run dev`           | Start the Vite dev server only             |
+| `npm run tauri:dev`     | Start the full Tauri desktop app           |
+| `npm run build`         | Type-check and build the web assets        |
+| `npm run tauri:build`   | Build a distributable desktop app          |
+| `npm run test`          | Run Vitest unit tests                      |
+| `npm run test:watch`    | Run Vitest in watch mode                   |
+| `npm run test:e2e`      | Build the e2e app and run Playwright tests |
+| `npm run test:e2e:ui`   | Run Playwright with the UI                 |
+| `npm run test:all`      | Run unit and e2e tests                     |
+| `npm run build:wordnet` | Build the bundled WordNet SQLite resource  |
+| `npm run lint`          | Run ESLint                                 |
+| `npm run format`        | Format the repository with Prettier        |
 
 ## Project Structure
 
