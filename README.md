@@ -3,8 +3,9 @@
 Scholara is a local-first desktop reading app for PDF and EPUB books. It combines a focused reader, notes and highlights, dictionary lookup, public-domain discovery through Gutendex and Project Gutenberg, and an AI reading assistant powered by OpenRouter.
 
 The app is built as a Tauri desktop application: your library files, notes, preferences, conversation history, and search indexes live on your machine, while chat completions are sent to OpenRouter only when you use AI features.
-![Uploading Screenshot 2026-05-10 at 11.15.15 PM.png…]()
-![Uploading Screenshot 2026-05-11 at 11.01.50 PM.png…]()
+<img width="1103" height="883" alt="Screenshot 2026-05-11 at 11 01 50 PM" src="https://github.com/user-attachments/assets/abdc6c1a-a003-4eb5-8dcb-beefd1f932a6" />
+<img width="1469" height="892" alt="Screenshot 2026-05-10 at 11 15 15 PM" src="https://github.com/user-attachments/assets/119f86eb-301b-4808-b716-d3dcf8823887" />
+
 
 ## Features
 
